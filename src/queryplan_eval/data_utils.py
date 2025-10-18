@@ -1,6 +1,5 @@
 from __future__ import annotations
 import pandas as pd
-from typing import Iterable
 
 REQUIRED_COLS = ["query"]
 
@@ -21,11 +20,12 @@ def load_queries(xlsx_path: str, n: int | None = None) -> pd.DataFrame:
     assert "query" in df.columns, f"Excel missing 'query' column. Got: {df.columns.tolist()}"
     if n:
         df = df.head(n)
-    return df[["query"]].copy()
+    return df[["query"]].copy() # type: ignore
 
 
 def load_queries_with_gold_labels(xlsx_path: str, n: int | None = None) -> pd.DataFrame:
     """加载查询数据及其金标签（预期的计划输出）
+    随机选择 n 行数据
     
     Args:
         xlsx_path: Excel 文件路径
@@ -45,6 +45,6 @@ def load_queries_with_gold_labels(xlsx_path: str, n: int | None = None) -> pd.Da
         raise ValueError(f"Excel missing 'plan' column for gold labels. Got: {df.columns.tolist()}")
     
     if n:
-        df = df.head(n)
+        df = df.sample(n, random_state=42)
     
-    return df[["query", "plan"]].copy()
+    return df[["query", "plan"]].copy() # type: ignore
