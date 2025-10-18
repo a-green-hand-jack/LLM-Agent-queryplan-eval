@@ -1,0 +1,122 @@
+---
+description: "py 项目结构模版"
+globs: ["**/*.py", "**/pyproject.toml"]
+alwaysApply: true
+---
+
+<!--
+本模板由 Gemini 2.5 Pro 创建，旨在为 AI 助手提供一套业界领先的、标准化的 Python 项目结构规范。
+
+使用说明：
+AI 助手你好，请你将自己定位为一名经验丰富的 Python 架构师。
+当我要求你创建一个新项目或模块时，你必须严格遵循本文件定义的目录结构和文件用途规范。
+你的任务是根据我的项目需求，生成这个结构的骨架，并为关键文件（如 pyproject.toml）提供符合项目实际的初始内容。
+你需要确保所有新生成的代码都放置在对应的正确位置，并能主动解释每个核心目录的职责。
+-->
+
+# Python 标准化项目结构模板
+
+## 1. 核心理念 (Core Philosophy)
+
+本结构旨在实现以下目标：
+- **清晰分离**: 源代码、测试、文档、脚本和配置完全分离，互不干扰。
+- **可维护性**: 逻辑清晰的模块化设计，便于长期维护和迭代。
+- **可扩展性**: 结构化的目录方便未来添加新功能、新模块或新应用。
+- **现代标准**: 全面采用 `pyproject.toml` 和 `src` 布局，遵循 Python 打包的最新最佳实践。
+
+---
+
+## 2. 目录结构 (Directory Structure)
+
+```
+[project_name]/
+├── .gitignore               # [必须] Git 忽略文件配置
+├── .env.example             # [推荐] 环境变量模板文件
+├── pyproject.toml           # [必须] 项目元数据、依赖与构建配置 (PEP 621)
+├── README.md                # [必须] 项目的入口说明文档
+|
+├── src/                     # [必须] 存放核心的 Python 包代码
+│   └── [package_name]/      # 包名，通常与 project_name 相同
+│       ├── __init__.py      # 包初始化文件，可用于导出公共 API
+│       ├── core/            # 核心业务逻辑模块
+│       ├── models/          # 数据结构、模型定义（Pydantic, SQLAlchemy, aio-pika等）
+│       ├── utils/           # 通用工具函数
+│       └── cli.py           # 如果是应用，存放命令行接口的入口
+|
+├── tests/                   # [推荐] 存放所有测试代码
+│   ├── __init__.py
+│   ├── conftest.py          # Pytest 的全局配置和 fixtures
+│   └── test_*.py            # 测试文件，与 src 中的模块对应
+|
+├── data/                    # [可选] 存放项目所需的数据
+│   ├── raw/                 # 原始数据
+│   └── processed/           # 经过处理和清洗的数据
+|
+├── output/                  # [可选] 存放项目运行产出的文件
+│   ├── logs/                # 运行日志
+│   ├── figures/             # 生成的图表或图像
+│   └── results/             # 结构化的输出结果（如 JSON, CSV）
+|
+├── configs/                 # [可选] 存放项目配置文件
+│   ├── base.yaml            # 基础配置
+│   └── production.yaml      # 生产环境配置
+|
+├── scripts/                 # [可选] 存放独立的、可执行的辅助脚本
+│   └── data_preprocessing.py # 例如：数据预处理、批量任务等
+|
+├── notebooks/               # [可选] 存放 Jupyter Notebooks
+│   └── exploratory_analysis.ipynb # 用于探索性分析、原型设计或教程演示
+|
+└── docs/                    # [可选] 存放项目文档
+    ├── index.md             # 文档首页
+    └── usage.md             # 使用指南
+|
+└── ai_collaboration/        # [可选] 存放与 AI 协作生成的各类文档
+    ├── 01_project_init.md
+    └── 02_critical_issue_analysis.md
+```
+
+---
+
+## 3. 文件/目录职责详解
+
+### 3.1. 根目录文件
+- **`pyproject.toml`**: **项目的唯一事实来源**。使用 `[project]` 表定义项目元数据（名称、版本、作者等），使用 `[project.dependencies]` 和 `[project.optional-dependencies]` 管理依赖。必须使用 `hatchling` 作为构建后端。
+- **`.gitignore`**: 用于忽略无需纳入版本控制的文件。你应根据项目类型（如 Python）自动添加标准配置（如 `__pycache__/`, `.venv/`, `*.pyc`），并且**必须**包含 `.env` 文件。
+- **`.env.example`**: **环境变量模板**。此文件应被纳入版本控制，用于列出项目运行所需的所有环境变量及其示例值（但不包含真实密钥）。开发者应基于此文件创建自己的 `.env` 文件来覆盖配置。
+- **`README.md`**: 项目的门面。应包含项目简介、功能特性、安装指南、快速上手示例和使用文档链接。
+
+### 3.2. `src` 目录
+- **`src/[package_name]`**: 存放所有可导入的 Python 源代码。采用 `src` 布局可以有效避免因当前工作路径混乱导致的导入问题，确保项目只能以“已安装”的方式被依赖。
+- **`__init__.py`**: 可以为空，或用于定义包的公共 API，例如 `from .core.main import process_data`。
+- **`core/`**: 存放项目的核心领域逻辑，是业务功能的主要实现地。
+- **`models/`**: 存放数据模型定义。对于数据科学项目，可能是算法模型；对于应用项目，则可能是 Pydantic 模型或数据库 ORM 模型。
+- **`utils/`**: 存放与核心业务逻辑无关的、可在多处复用的辅助函数，如文件读写、日期处理等。
+- **`cli.py`**: 若项目提供命令行界面，这是放置 Click, Typer 或 `argparse` 代码的最佳位置。其入口点应在 `pyproject.toml` 的 `[project.scripts]` 中定义。
+
+### 3.3. `tests` 目录
+- 用于隔离所有测试代码，确保测试不会被打包到最终发行的软件中。目录结构应尽量模仿 `src` 目录，便于定位。
+
+### 3.4. `data` 和 `output` 目录
+- **`data/`**: 用于存放项目运行依赖的静态数据。`raw` 目录中的数据应被视为不可变。
+- **`output/`**: 项目运行时动态生成的文件。此目录通常应被添加到 `.gitignore` 中。
+
+### 3.5. `scripts` 和 `notebooks`
+- **`scripts/`**: 存放一次性的或辅助性的脚本，它们不是项目核心库的一部分。**重要**: 当这些脚本需要导入 `src` 中的模块时，你必须在脚本顶部添加样板代码以修改 `sys.path`，或建议用户使用 `uv pip install -e .` 进行可编辑安装。
+- **`notebooks/`**: 用于探索和可视化，不应包含核心业务逻辑。它们是实验的“草稿纸”。
+
+### 3.6. `configs` 和 `docs`
+- **`configs/`**: 将配置与代码分离，便于在不同环境（开发、测试、生产）中使用不同的配置。
+- **`docs/`**: 存放使用 Sphinx, MkDocs 或其他工具生成的项目文档。
+
+### 3.7. `ai_collaboration` 目录
+- 用于归档所有在项目关键节点与 AI 助手协作生成的 Markdown 文档。这些文档是项目需求、架构设计、问题分析和决策过程的原始记录，是宝贵的知识资产。建议通过编号来维持它们的时序性。
+
+---
+
+## 4. AI 实施指南
+
+当你为我创建新项目时，请：
+1.  **从基础开始**: 至少创建包含 `pyproject.toml`, `README.md`, `.gitignore`, 和 `src/[package_name]/__init__.py` 的基本结构。
+2.  **按需扩展**: 主动询问我项目类型（例如：数据分析、Web 应用、机器学习），并根据需要建议添加 `tests`, `data`, `scripts` 等可选目录。
+3.  **填充 `pyproject.toml`**: 根据我们的讨论，为 `pyproject.toml` 生成一个包含项目名称、版本 `0.1.0`、描述、作者信息和基本依赖的初始版本。

@@ -1,0 +1,209 @@
+# 可视化风格配置文件
+# 用于复用一致的画图风格
+# 作者: AI Assistant
+# 日期: 2025-09-23
+
+# 全局绘图设置
+global_settings:
+  # 图表样式
+  style: "whitegrid"  # seaborn样式: whitegrid, darkgrid, white, dark, ticks
+  
+  # 字体设置
+  font_family: "DejaVu Sans"  # 字体族
+  font_size_base: 12          # 基础字体大小
+  
+  # 图表尺寸和分辨率
+  figure_size: [10, 8]        # 默认图表尺寸 [宽, 高]
+  dpi: 300                    # 图片分辨率
+  
+  # 颜色设置
+  color_palette: "Set2"       # seaborn调色板
+  alpha: 0.7                  # 透明度
+  
+  # 网格设置
+  grid_alpha: 0.3             # 网格透明度
+  
+  # 保存设置
+  bbox_inches: "tight"        # 边界框设置
+  
+# 字体大小层级
+font_sizes:
+  title: 16                   # 主标题
+  subtitle: 14                # 副标题
+  axis_label: 14              # 坐标轴标签
+  tick_label: 12              # 刻度标签
+  legend: 12                  # 图例
+  annotation: 10              # 注释
+
+# 颜色配置
+colors:
+  # 策略颜色映射
+  strategy_colors:
+    no_template: "#2E8B57"      # 海绿色
+    full_template: "#4682B4"    # 钢蓝色
+    mask_all_cdr: "#CD853F"     # 秘鲁色
+    mask_cdr_template: "#CD853F" # 兼容旧名称
+  
+  # 通用颜色
+  primary: "#2E8B57"          # 主色调
+  secondary: "#4682B4"        # 次色调
+  accent: "#CD853F"           # 强调色
+  neutral: "#333333"          # 中性色
+  
+  # 相关性热图颜色
+  heatmap_colormap: "RdBu_r"  # 红蓝反转
+  heatmap_center: 0           # 颜色中心值
+  
+  # 趋势线颜色
+  trend_line: "#FF6347"       # 番茄红
+  trend_alpha: 0.8            # 趋势线透明度
+
+# 散点图配置
+scatter_plot:
+  marker_size: 60             # 散点大小
+  marker_alpha: 0.7           # 散点透明度
+  trend_line:
+    color: "#FF6347"          # 趋势线颜色
+    style: "--"               # 线型：实线"-", 虚线"--", 点线":"
+    width: 2                  # 线宽
+    alpha: 0.8                # 透明度
+
+# 箱线图配置
+box_plot:
+  notch: true                 # 是否显示缺口
+  patch_alpha: 0.7            # 箱体透明度
+  whisker_props:
+    linewidth: 1.5            # 须线宽度
+  median_props:
+    linewidth: 2              # 中位线宽度
+    color: "black"            # 中位线颜色
+
+# 热图配置
+heatmap:
+  annot: true                 # 显示数值
+  fmt: ".3f"                  # 数值格式
+  square: true                # 方形单元格
+  linewidths: 0.5             # 分割线宽度
+  cbar_shrink: 0.8            # 颜色条缩放
+
+# 直方图配置
+histogram:
+  bins: 20                    # 分箱数量
+  alpha: 0.6                  # 透明度
+  density: false              # 是否显示密度
+  edge_color: "black"         # 边框颜色
+  edge_width: 0.5             # 边框宽度
+
+# 分布图配置
+distribution:
+  hist_alpha: 0.6             # 直方图透明度
+  kde_alpha: 0.8              # 核密度估计透明度
+  bins: 20                    # 分箱数量
+
+# 图例配置
+legend:
+  location: "best"            # 图例位置
+  frameon: true               # 是否显示边框
+  fancybox: true              # 圆角边框
+  shadow: false               # 阴影
+  framealpha: 0.9             # 边框透明度
+
+# 坐标轴配置
+axes:
+  # 标签设置
+  label_weight: "bold"        # 标签字体粗细
+  label_pad: 10               # 标签间距
+  
+  # 刻度设置
+  tick_direction: "out"       # 刻度方向
+  tick_length: 4              # 刻度长度
+  tick_width: 1               # 刻度宽度
+  
+  # 旋转角度
+  x_rotation: 45              # X轴标签旋转角度
+  y_rotation: 0               # Y轴标签旋转角度
+
+# 子图配置
+subplots:
+  # 间距设置
+  hspace: 0.3                 # 垂直间距
+  wspace: 0.3                 # 水平间距
+  
+  # 边距设置
+  left: 0.1                   # 左边距
+  right: 0.9                  # 右边距
+  top: 0.9                    # 上边距
+  bottom: 0.1                 # 下边距
+
+# 特定图表类型配置
+chart_types:
+  # 相关性散点图
+  correlation_scatter:
+    figure_size: [10, 8]
+    title_template: "{metric1} vs {metric2} Correlation\n(Pearson r = {pearson:.3f}, p = {p_value:.3f})"
+    
+  # 策略对比箱线图
+  strategy_comparison:
+    figure_size: [15, 6]
+    subplot_layout: [1, 2]    # [行, 列]
+    
+  # 相关性热图
+  correlation_heatmap:
+    figure_size: [8, 6]
+    title: "Correlation Coefficients by Strategy"
+    
+  # 分布对比图
+  distribution_comparison:
+    figure_size: [15, 12]
+    subplot_layout: [2, 2]    # [行, 列]
+
+# 输出配置
+output:
+  # 文件格式
+  format: "png"               # 图片格式: png, pdf, svg, jpg
+  
+  # 文件命名
+  filename_template: "{plot_type}_{timestamp}"  # 文件名模板
+  
+  # 保存参数
+  save_params:
+    dpi: 300
+    bbox_inches: "tight"
+    facecolor: "white"
+    edgecolor: "none"
+    transparent: false
+
+# 国际化设置
+localization:
+  # 图表文字语言（所有图表文字必须使用英文）
+  plot_language: "en"
+  
+  # 常用标签翻译
+  labels:
+    en:
+      ipae: "iPAE A-B Symmetric"
+      ranking_score: "Ranking Score"
+      frequency: "Frequency"
+      density: "Density"
+      strategy: "Strategy"
+      correlation: "Correlation"
+      distribution: "Distribution"
+      comparison: "Comparison"
+      
+# 质量控制
+quality_control:
+  # 最小图表尺寸
+  min_figure_size: [6, 4]
+  
+  # 最大图表尺寸
+  max_figure_size: [20, 16]
+  
+  # DPI范围
+  min_dpi: 150
+  max_dpi: 600
+  
+  # 颜色对比度检查
+  check_contrast: true
+  
+  # 字体大小检查
+  check_font_size: true

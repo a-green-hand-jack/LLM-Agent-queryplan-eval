@@ -1,0 +1,296 @@
+---
+description: "实验管理规范"
+globs: ["**/experiments/**/*.py", "**/experiments/**/*.sh", "**/experiments/**/README.md"]
+alwaysApply: false
+---
+
+<!--
+本模板由 Claude Sonnet 4 创建，旨在为 AI 助手提供一套清晰、标准化的实验环境管理和执行规范。
+
+使用说明：
+AI 助手你好，请你将自己定位为一名经验丰富的研究开发工程师和实验设计专家。
+当我明确要求进行实验或使用实验环境时，你必须严格遵循本文件定义的实验目录结构、脚本命名规范和执行环境要求。
+你需要主动引导我建立规范的实验环境，并确保所有实验脚本都能在指定的远程环境和虚拟环境中正确执行。
+你的任务包括：创建实验目录结构、编写 POC 风格的实验脚本、配置执行环境、以及记录实验进度和结果。
+-->
+
+# 实验管理规范 (Experiment Management Specification)
+
+## 1. 核心理念 (Core Philosophy)
+
+- **快速迭代**: 实验脚本采用 POC (Proof of Concept) 原则，注重快速验证想法而非代码完美性。
+- **环境隔离**: 每个实验在独立的目录中进行，使用指定的虚拟环境和 tmux 会话。
+- **结果导向**: 重点关注实验结果和结论，而非代码的可移植性。
+- **记录完整**: 完整记录实验过程、进度和结论，便于后续回溯和分析。
+
+---
+
+## 2. 实验目录结构 (Experiment Directory Structure)
+
+### 2.1. 标准目录布局
+```
+./experiments/<experiment_name>/
+├── README.md               # [必须] 实验目标、方法和最终结论
+├── data/                   # [必须] 实验数据存储
+│   ├── raw/               # 原始输入数据
+│   ├── processed/         # 预处理后的数据
+│   └── from_other_exp/    # 来自其他实验的数据
+├── config/                # [必须] 实验配置文件
+│   ├── environment.yaml   # 虚拟环境配置
+│   ├── paths.yaml         # 路径配置
+│   ├── variables.env      # 环境变量设置
+│   └── visualization.yaml # 可视化配置
+├── scripts/               # [必须] 实验执行脚本
+│   ├── 01_data_preparation.py
+│   ├── 02_model_training.py
+│   ├── 03_evaluation.py
+│   └── run_experiment.sh  # 主执行脚本
+├── progress/              # [必须] 实验进度记录
+│   ├── 01_init_experiment.md
+│   ├── 02_data_analysis.md
+│   └── 03_results_summary.md
+├── docs/                  # [推荐] 分析文档和结论
+│   ├── analysis.md
+│   └── conclusions.md
+└── outputs/               # [必须] 实验结果输出
+    ├── 01_data_preparation/
+    ├── 02_model_training/
+    ├── 03_evaluation/
+    └── final_results/
+```
+
+### 2.2. 目录职责说明
+- **`data/`**: 存放实验所需的所有数据文件，支持多种数据源
+  - `raw/`: 实验专用的原始数据
+  - `processed/`: 本实验处理后的数据
+  - `from_other_exp/`: **只读软链接**，指向其他实验的输出数据
+- **`config/`**: 实验运行的所有配置信息，包括环境和参数设置
+- **`scripts/`**: 按数字顺序命名的实验脚本，体现执行流程
+- **`progress/`**: AI 生成的进度记录，跟踪实验各阶段状态
+- **`docs/`**: AI 生成的分析文档和实验结论
+- **`outputs/`**: 按脚本名称组织的输出结果目录
+
+---
+
+## 3. 脚本命名与编写规范 (Script Naming & Coding Standards)
+
+### 3.1. 命名规范
+- **Python 脚本**: `<两位数字编号>_<脚本功能描述>.py`
+  - 示例: `01_select_sequence.py`, `02_feature_extraction.py`
+- **Shell 脚本**: `<两位数字编号>_<脚本功能描述>.sh`
+  - 示例: `01_setup_environment.sh`, `99_cleanup.sh`
+- **主执行脚本**: `run_experiment.sh` (调用所有子脚本)
+
+### 3.2. 脚本编写原则
+- **POC 导向**: 代码以快速验证为目标，允许硬编码路径和参数
+- **简洁明了**: 每个脚本专注单一功能，避免过度抽象
+- **输出明确**: 每个脚本必须在对应的 `outputs/<script_name>/` 目录中产生结果
+- **日志记录**: 使用 logging 模块记录关键步骤和结果
+
+### 3.3. 路径管理
+```python
+# 实验脚本中的标准路径设置
+import os
+from pathlib import Path
+
+# 实验根路径 (脚本执行时的当前目录)
+EXPERIMENT_ROOT = Path.cwd()
+DATA_DIR = EXPERIMENT_ROOT / "data"
+CONFIG_DIR = EXPERIMENT_ROOT / "config"
+OUTPUT_DIR = EXPERIMENT_ROOT / "outputs" / Path(__file__).stem
+PROGRESS_DIR = EXPERIMENT_ROOT / "progress"
+
+# 确保输出目录存在
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+```
+
+---
+
+## 4. 执行环境规范 (Execution Environment)
+
+### 4.1. 工作目录要求
+- **执行位置**: 所有脚本必须在 `./experiments/<experiment_name>/` 目录下执行
+- **相对路径**: 脚本使用相对路径访问 `./scripts/`, `./data/`, `./config/` 等目录
+- **路径一致性**: 确保所有脚本对资源的访问路径保持一致
+
+### 4.2. 虚拟环境管理
+- **使用现有环境**: 实验应使用已存在的 mamba/conda/uv 环境，不创建新环境
+- **依赖检查原则**: 当实验需要新的包依赖时，AI 助手**严禁自动安装**，必须：
+  1. 明确告知用户需要安装的包及其用途
+  2. 提供完整的安装命令供用户确认
+  3. 等待用户明确同意后才能继续
+- **环境记录**: 在 `config/environment.yaml` 中记录使用的环境和新增包
+
+```yaml
+# config/environment.yaml 示例
+environment_name: "my_existing_env"  # 现有环境名称
+environment_type: "mamba"            # mamba/conda/uv
+base_packages:                       # 环境中已有的关键包
+  - pandas==2.0.3
+  - numpy==1.24.3
+  - torch==2.0.1
+experiment_additions:                # 本实验新增的包
+  - seaborn==0.12.2                 # 用于数据可视化
+  - plotly==5.17.0                  # 用于交互式图表
+installation_commands:               # 用户确认的安装命令
+  - "mamba install seaborn=0.12.2"
+  - "mamba install plotly=5.17.0"
+```
+
+### 4.3. Tmux 会话管理
+- **会话命名**: `exp_<experiment_name>`
+- **会话持久化**: 实验过程中保持 tmux 会话活跃，支持断开重连
+- **环境激活**: 在 tmux 会话中自动激活指定的虚拟环境
+
+---
+
+## 5. 配置文件规范 (Configuration Files)
+
+### 5.1. 环境变量配置 (`config/variables.env`)
+```bash
+# 实验特定的环境变量
+CUDA_VISIBLE_DEVICES=0,1
+TOKENIZERS_PARALLELISM=false
+EXPERIMENT_NAME=protein_analysis
+OUTPUT_FORMAT=json
+```
+
+### 5.2. 路径配置 (`config/paths.yaml`)
+```yaml
+# 关键路径配置
+virtual_env: "/home/user/envs/experiment_env"
+tmux_session: "exp_protein_analysis"
+base_model_path: "/shared/models/base_model"
+reference_data: "/shared/datasets/reference"
+```
+
+### 5.3. 可视化配置 (`config/visualization.yaml`)
+```yaml
+# 图表和可视化设置
+figure_size: [12, 8]
+dpi: 300
+font_family: "Arial"
+color_palette: "Set2"
+save_formats: ["png", "pdf"]
+```
+
+---
+
+## 6. 进度记录规范 (Progress Documentation)
+
+### 6.1. 进度文件命名
+- **格式**: `<两位数字编号>_<进度阶段描述>.md`
+- **示例**: `01_init_experiment.md`, `02_data_preprocessing.md`, `03_model_evaluation.md`
+
+### 6.2. 进度记录模板
+```markdown
+# 实验进度记录 - <阶段名称>
+
+**日期**: YYYY-MM-DD
+**执行脚本**: `<对应的脚本文件名>`
+**状态**: [ ] 进行中 / [x] 已完成 / [ ] 遇到问题
+
+## 本阶段目标
+- [ ] 目标1: 描述具体目标
+- [ ] 目标2: 描述具体目标
+
+## 执行记录
+### 关键步骤
+1. 步骤描述...
+2. 步骤描述...
+
+### 遇到的问题
+- 问题描述及解决方案...
+
+### 重要发现
+- 关键发现和insights...
+
+## 输出结果
+- 文件路径: `./outputs/<script_name>/result.json`
+- 结果描述: ...
+
+## 下一步计划
+- 下一阶段的主要任务...
+```
+
+---
+
+## 7. AI 实施指南 (AI Implementation Guidelines)
+
+### 7.1. 实验环境创建
+当我要求创建新实验时，请：
+1. **确认实验名称**: 主动询问实验的具体名称和目标
+2. **确认现有环境**: 询问要使用的现有 mamba/conda/uv 环境名称
+3. **创建目录结构**: 按照标准结构创建完整的实验目录
+4. **初始化配置**: 根据实验需求生成基础配置文件，记录现有环境信息
+5. **设置数据链接**: 如需使用其他实验数据，创建适当的软链接
+6. **创建README**: 编写实验的初始README，明确目标和计划
+
+### 7.2. 脚本开发
+在编写实验脚本时，必须：
+- **POC优先**: 代码简洁直接，专注功能实现而非代码优雅
+- **硬编码允许**: 允许路径、参数等硬编码，提高开发速度
+- **输出规范**: 确保每个脚本在指定输出目录产生结果
+- **日志完善**: 添加关键步骤的日志记录
+- **依赖检查**: 如需新包依赖，必须先征得用户同意：
+  ```python
+  # 在脚本开头检查依赖
+  try:
+      import seaborn as sns
+  except ImportError:
+      print("❌ 缺少依赖包: seaborn")
+      print("📦 建议安装命令: mamba install seaborn=0.12.2")
+      print("⚠️  请确认安装后再运行脚本")
+      exit(1)
+  ```
+
+### 7.3. 执行命令生成
+为每个实验脚本生成标准的执行命令：
+```bash
+# 切换到实验目录
+cd ./experiments/<experiment_name>
+
+# 创建或连接 tmux 会话
+tmux new-session -d -s exp_<experiment_name> || tmux attach-session -t exp_<experiment_name>
+
+# 在 tmux 会话中激活虚拟环境并执行脚本
+tmux send-keys -t exp_<experiment_name> "source <virtual_env_path>/bin/activate" Enter
+tmux send-keys -t exp_<experiment_name> "python ./scripts/<script_name>.py" Enter
+```
+
+### 7.4. 进度跟踪
+- **主动记录**: 在每个脚本执行完成后，主动生成或更新对应的进度记录文件
+- **结果总结**: 在 `docs/` 目录中生成分析和结论文档
+- **README更新**: 实验完成后更新README中的结论部分
+
+---
+
+## 8. 最佳实践 (Best Practices)
+
+### 8.1. 数据管理
+- **数据版本**: 在 `data/` 目录中明确标记数据来源和版本
+- **跨实验数据复用**: 
+  - **只读原则**: 来自其他实验的数据**绝对不能修改**
+  - **软链接机制**: 使用软链接访问其他实验的数据
+  - **链接管理**: 在 `data/from_other_exp/` 中创建有意义的软链接名称
+  ```bash
+  # 示例：链接其他实验的结果数据
+  ln -s ../../experiment_A/outputs/02_feature_extraction/features.csv \
+        ./data/from_other_exp/baseline_features.csv
+  
+  ln -s ../../experiment_B/outputs/final_results/trained_model.pkl \
+        ./data/from_other_exp/pretrained_model.pkl
+  ```
+- **数据清理**: 定期清理不再需要的中间数据文件，但保留重要的软链接
+
+### 8.2. 结果保存
+- **结构化输出**: 优先使用 JSON, CSV 等结构化格式保存结果
+- **可视化标准**: 图表保存为高分辨率格式，便于后续使用
+- **版本控制**: 重要结果添加时间戳或版本标记
+
+### 8.3. 实验复现
+- **环境记录**: 完整记录运行环境和依赖版本
+- **参数保存**: 将所有关键参数保存到配置文件中
+- **执行日志**: 保留完整的执行日志，便于问题诊断
+
+---

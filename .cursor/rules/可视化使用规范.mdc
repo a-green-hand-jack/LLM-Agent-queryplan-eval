@@ -1,0 +1,1118 @@
+---
+description: "可视化使用规范"
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+<!--
+本模板由 Claude Sonnet 4 创建，旨在为 AI 助手提供统一的可视化使用标准和输出管理规范。
+
+使用说明：
+AI 助手你好，请你将自己定位为一名经验丰富的数据可视化专家和科学图表设计师。
+当我在任何 Python 脚本中需要创建图表、绘图或数据可视化时，你必须严格遵循本文件定义的使用规范。
+这套规范适用于整个项目的所有模块：src/源代码、tests/测试代码、experiments/实验代码。
+你的核心任务是确保每个脚本的可视化输出都位于正确的目录中，并遵循统一的质量和风格标准。
+-->
+
+# 可视化使用规范 (Visualization Usage Specification)
+
+## 1. 核心使用原则 (Core Usage Principles)
+
+- **脚本导向输出**: 每个脚本的可视化结果必须输出到对应的 `./outputs/<script_name>/` 目录
+- **数据追溯性**: 可视化脚本主要从之前的实验结果、处理数据或测试输出中提取数据进行绘图
+- **质量验证**: 在测试中使用可视化来验证实现的正确性和合理性
+- **风格一致性**: 所有可视化必须通过 `VisualizationManager` 类实现，确保统一风格
+- **英文标准**: 所有图表文字必须使用英文，保证国际化兼容性
+
+---
+
+## 2. 输出目录规范 (Output Directory Standards)
+
+### 2.1. 标准输出路径结构
+**统一输出目录格式**：所有模块都遵循相同的输出结构
+```
+# 通用输出结构（适用于 src/、experiments/、tests/）
+./outputs/<script_name>/
+├── figures/                     # 可视化图表
+│   ├── correlation_analysis.png
+│   ├── performance_comparison.png
+│   └── distribution_plots.png
+├── data_extracts/              # 可视化用的数据提取
+│   ├── processed_data.csv
+│   ├── filtered_results.json
+│   └── summary_statistics.csv
+└── logs/                       # 可视化执行日志
+    └── visualization.log
+
+# src/ 模块示例（输出在项目根目录）
+project_root/
+├── src/analysis/data_analyzer.py      # 脚本位置
+└── outputs/data_analyzer/             # 输出位置（在项目根目录）
+    ├── figures/
+    ├── data_extracts/
+    └── logs/
+
+# experiments/ 模块示例（输出在实验目录内）
+experiments/protein_study/
+├── scripts/03_visualization_analysis.py   # 脚本位置
+└── outputs/03_visualization_analysis/     # 输出位置（在实验目录内）
+    ├── figures/
+    ├── data_extracts/
+    └── logs/
+
+# tests/ 模块示例（输出在tests目录内）
+tests/
+├── test_model_validation.py              # 脚本位置
+└── outputs/test_model_validation/        # 输出位置（在tests目录内）
+    ├── figures/
+    ├── data_extracts/
+    └── logs/
+```
+
+### 2.2. 脚本名称提取与目录设置
+```python
+# 标准的脚本名称和输出目录设置
+import os
+import logging
+from pathlib import Path
+
+def setup_visualization_environment():
+    """设置统一的可视化输出环境"""
+    
+    # 获取当前脚本名（不含扩展名）
+    script_name = Path(__file__).stem
+    
+    # 根据脚本位置确定输出根目录
+    current_path = Path(__file__).resolve()
+    
+    if "src" in current_path.parts:
+        # src模块：输出到项目根目录的outputs
+        project_root = current_path
+        for parent in current_path.parents:
+            if "src" in parent.parts and (parent / "src").exists():
+                project_root = parent
+                break
+        base_output_dir = project_root / "outputs" / script_name
+        
+    elif "experiments" in current_path.parts:
+        # experiments模块：输出到实验目录的outputs
+        experiment_root = Path.cwd()  # 假设在实验目录下执行
+        base_output_dir = experiment_root / "outputs" / script_name
+        
+    elif "tests" in current_path.parts:
+        # tests模块：输出到tests目录的outputs
+        tests_root = current_path
+        for parent in current_path.parents:
+            if parent.name == "tests":
+                tests_root = parent
+                break
+        base_output_dir = tests_root / "outputs" / script_name
+        
+    else:
+        # 默认：当前目录的outputs
+        base_output_dir = Path.cwd() / "outputs" / script_name
+    
+    # 创建子目录
+    figures_dir = base_output_dir / "figures"
+    data_extracts_dir = base_output_dir / "data_extracts" 
+    logs_dir = base_output_dir / "logs"
+    
+    # 确保所有目录存在
+    for directory in [figures_dir, data_extracts_dir, logs_dir]:
+        directory.mkdir(parents=True, exist_ok=True)
+    
+    # 设置日志
+    log_file = logs_dir / "visualization.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    
+    logging.info(f"📁 输出目录设置: {base_output_dir}")
+    
+    return {
+        'base': base_output_dir,
+        'figures': figures_dir,
+        'data_extracts': data_extracts_dir,
+        'logs': logs_dir
+    }
+
+# 每个包含可视化的脚本必须包含此设置
+OUTPUT_DIRS = setup_visualization_environment()
+```
+
+---
+
+## 3. 输出格式策略 (Output Format Strategy)
+
+### 3.1. 格式选择原则
+**基于使用环境的格式策略**：
+
+- **src/ 和 tests/ 模块**: 优先使用 **PNG** 格式
+  - 原因：快速迭代、便于查看、文件较小
+  - 设置：`output_format="png", dpi=300`
+
+- **experiments/ 模块**: 使用 **PNG + PDF** 双格式
+  - PNG：用于快速查看和分享
+  - PDF：用于正式报告和出版
+  - 设置：`output_formats=["png", "pdf"], dpi=300`
+
+### 3.2. 动态格式配置
+```python
+def determine_output_formats(module_type: str = None, user_preference: str = None):
+    """根据模块类型和用户偏好确定输出格式"""
+    
+    if user_preference:
+        # 用户明确指定格式时优先使用
+        return [user_preference.lower()]
+    
+    # 根据脚本位置自动判断
+    current_path = Path.cwd()
+    
+    if "experiments" in str(current_path):
+        return ["png", "pdf"]  # 实验环境使用双格式
+    elif any(x in str(current_path) for x in ["src", "tests"]):
+        return ["png"]         # 开发和测试环境使用PNG
+    else:
+        return ["png"]         # 默认使用PNG
+
+def save_visualization_with_formats(viz_manager, plot_data, base_filename: str):
+    """按格式策略保存可视化"""
+    
+    formats = determine_output_formats()
+    
+    for fmt in formats:
+        output_path = OUTPUT_DIRS['figures'] / f"{base_filename}.{fmt}"
+        
+        # 根据格式调整保存参数
+        save_params = {
+            'png': {'dpi': 300, 'facecolor': 'white', 'transparent': False},
+            'pdf': {'dpi': 300, 'facecolor': 'white', 'bbox_inches': 'tight'}
+        }
+        
+        viz_manager.save_figure(plot_data, str(output_path), **save_params[fmt])
+        logging.info(f"💾 已保存 {fmt.upper()} 格式: {output_path}")
+```
+
+---
+
+## 4. 数据来源与处理规范 (Data Source & Processing Standards)
+
+### 4.1. 从实验结果提取数据
+**使用场景**: 可视化脚本分析之前实验的输出结果
+
+```python
+#!/usr/bin/env python3
+"""
+实验结果可视化脚本
+
+从之前的实验结果中提取关键数据并进行可视化分析。
+
+输入: 其他实验的输出结果
+输出: ./outputs/analyze_experiment_results/
+"""
+
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import json
+import logging
+from utils.visualization_utils import VisualizationManager
+
+# 设置输出环境
+OUTPUT_DIRS = setup_visualization_environment()
+
+def load_experiment_data():
+    """从之前的实验中加载数据"""
+    
+    logging.info("📥 开始加载实验数据...")
+    
+    # 示例：从其他实验结果中读取数据
+    exp1_results = pd.read_csv("experiments/protein_analysis/outputs/02_feature_extraction/data_extracts/features.csv")
+    exp2_results = pd.read_csv("experiments/model_training/outputs/03_evaluation/data_extracts/results.csv")
+    
+    # 数据整合和清洗
+    combined_data = merge_experimental_data(exp1_results, exp2_results)
+    
+    # 保存处理后的数据到data_extracts
+    processed_data_path = OUTPUT_DIRS['data_extracts'] / "combined_experiment_data.csv"
+    combined_data.to_csv(processed_data_path, index=False)
+    logging.info(f"💾 已保存处理后的数据: {processed_data_path}")
+    
+    # 记录数据来源信息
+    data_sources = {
+        "experiment_1": "experiments/protein_analysis/outputs/02_feature_extraction/data_extracts/features.csv",
+        "experiment_2": "experiments/model_training/outputs/03_evaluation/data_extracts/results.csv",
+        "processing_date": "2025-09-23",
+        "script": str(__file__),
+        "total_records": len(combined_data),
+        "columns": list(combined_data.columns)
+    }
+    
+    sources_path = OUTPUT_DIRS['data_extracts'] / "data_sources.json"
+    with open(sources_path, 'w') as f:
+        json.dump(data_sources, f, indent=2)
+    logging.info(f"📋 已记录数据来源: {sources_path}")
+    
+    return combined_data
+
+def create_analysis_visualizations(data):
+    """创建分析可视化图表"""
+    
+    logging.info("🎨 开始创建可视化图表...")
+    viz = VisualizationManager()
+    
+    # 1. 性能对比分析
+    if 'strategy' in data.columns and 'performance' in data.columns:
+        output_path = OUTPUT_DIRS['figures'] / "strategy_performance_comparison.png"
+        viz.create_box_plot(
+            data=data,
+            x_col='strategy', 
+            y_col='performance',
+            output_path=str(output_path),
+            title="Strategy Performance Comparison",
+            xlabel="Strategy Type",
+            ylabel="Performance Score"
+        )
+        logging.info("✅ 策略性能对比图已生成")
+    
+    # 2. 特征相关性分析
+    numeric_cols = data.select_dtypes(include=[np.number]).columns
+    if len(numeric_cols) >= 2:
+        correlation_matrix = data[numeric_cols].corr()
+        
+        # 保存相关性数据
+        corr_data_path = OUTPUT_DIRS['data_extracts'] / "correlation_matrix.csv"
+        correlation_matrix.to_csv(corr_data_path)
+        logging.info(f"💾 相关性矩阵数据已保存: {corr_data_path}")
+        
+        # 生成热图
+        output_path = OUTPUT_DIRS['figures'] / "feature_correlation_matrix.png"
+        viz.create_heatmap(
+            data=correlation_matrix,
+            output_path=str(output_path),
+            title="Feature Correlation Analysis"
+        )
+        logging.info("✅ 特征相关性热图已生成")
+
+if __name__ == "__main__":
+    logging.info(f"📊 开始分析实验结果可视化")
+    logging.info(f"📁 输出目录: {OUTPUT_DIRS['base']}")
+    
+    # 加载数据
+    data = load_experiment_data()
+    
+    # 创建可视化
+    create_analysis_visualizations(data)
+    
+    logging.info(f"✅ 可视化完成，结果保存在: {OUTPUT_DIRS['base']}")
+```
+
+### 4.2. 测试结果可视化
+**使用场景**: 在测试中可视化验证实现正确性
+
+```python
+#!/usr/bin/env python3
+"""
+测试结果可视化
+
+验证算法实现的正确性，通过可视化检查结果是否符合预期。
+
+输入: 测试数据和算法输出
+输出: ./outputs/test_algorithm_validation/
+"""
+
+import pytest
+import numpy as np
+from pathlib import Path
+from utils.visualization_utils import VisualizationManager
+
+# 测试输出设置
+OUTPUT_DIRS = setup_visualization_environment()
+
+def test_algorithm_with_visualization():
+    """测试算法并可视化验证结果"""
+    
+    # 准备测试数据
+    np.random.seed(42)
+    x_test = np.linspace(0, 10, 100)
+    y_expected = 2 * x_test + 1  # 预期的线性关系
+    y_actual = my_algorithm(x_test)  # 算法实际输出
+    
+    # 保存测试数据
+    test_data = pd.DataFrame({
+        'input': x_test,
+        'expected': y_expected,
+        'actual': y_actual
+    })
+    test_data_path = OUTPUT_DIRS['data_extracts'] / "test_comparison_data.csv"
+    test_data.to_csv(test_data_path, index=False)
+    logging.info(f"💾 测试数据已保存: {test_data_path}")
+    
+    # 初始化可视化
+    viz = VisualizationManager()
+    
+    # 1. 预期 vs 实际结果对比
+    viz.create_scatter_plot(
+        x_data=y_expected,
+        y_data=y_actual,
+        output_path=str(OUTPUT_DIRS['figures'] / "expected_vs_actual.png"),
+        title="Algorithm Validation: Expected vs Actual",
+        xlabel="Expected Values",
+        ylabel="Actual Values", 
+        add_trend_line=True
+    )
+    
+    # 2. 误差分布分析
+    errors = y_actual - y_expected
+    viz.create_histogram(
+        data=errors,
+        output_path=str(OUTPUT_DIRS['figures'] / "error_distribution.png"),
+        title="Algorithm Error Distribution", 
+        xlabel="Error Value",
+        ylabel="Frequency"
+    )
+    
+    # 验证结果
+    mse = np.mean(errors**2)
+    assert mse < 0.1, f"算法误差过大: MSE = {mse}"
+    
+    logging.info(f"✅ 测试通过，可视化结果保存在: {OUTPUT_DIRS['base']}")
+
+def my_algorithm(x):
+    """示例算法实现"""
+    return 2 * x + 1 + np.random.normal(0, 0.05, len(x))
+
+if __name__ == "__main__":
+    test_algorithm_with_visualization()
+```
+
+### 4.3. 实验进度可视化
+**使用场景**: 实验脚本中的中间结果可视化
+
+```python
+#!/usr/bin/env python3
+"""
+03_model_evaluation.py
+
+模型评估实验脚本，包含训练过程和结果的可视化。
+
+输入: 训练好的模型和测试数据
+输出: ./outputs/03_model_evaluation/
+"""
+
+from pathlib import Path
+import pandas as pd
+import numpy as np
+
+# 实验环境设置
+EXPERIMENT_ROOT = Path.cwd()
+OUTPUT_DIRS = setup_visualization_environment()
+
+# 导入可视化工具（实验环境中的导入方式）
+import sys
+sys.path.append(str(EXPERIMENT_ROOT.parent.parent / "utils"))
+from visualization_utils import VisualizationManager
+
+def evaluate_model_with_visualization():
+    """模型评估与可视化"""
+    
+    logging.info(f"📊 开始模型评估")
+    
+    # 1. 从之前的实验步骤加载数据
+    model_path = EXPERIMENT_ROOT / "outputs" / "02_model_training" / "data_extracts" / "trained_model.pkl"
+    test_data_path = EXPERIMENT_ROOT / "data" / "processed" / "test_data.csv"
+    
+    # 加载模型和数据
+    model = load_model(model_path) 
+    test_data = pd.read_csv(test_data_path)
+    
+    # 2. 模型预测
+    y_true = test_data['target'].values
+    y_pred = model.predict(test_data.drop('target', axis=1))
+    
+    # 保存评估数据
+    eval_results = pd.DataFrame({
+        'true_values': y_true,
+        'predictions': y_pred,
+        'errors': y_pred - y_true
+    })
+    eval_data_path = OUTPUT_DIRS['data_extracts'] / "evaluation_results.csv"
+    eval_results.to_csv(eval_data_path, index=False)
+    
+    # 3. 可视化结果
+    viz = VisualizationManager()
+    
+    # 预测准确性散点图
+    viz.create_scatter_plot(
+        x_data=y_true,
+        y_data=y_pred,
+        output_path=str(OUTPUT_DIRS['figures'] / "prediction_accuracy.png"),
+        title="Model Prediction Accuracy",
+        xlabel="True Values", 
+        ylabel="Predicted Values",
+        add_trend_line=True
+    )
+    
+    # 预测误差分布
+    errors = y_pred - y_true
+    viz.create_histogram(
+        data=errors,
+        output_path=str(OUTPUT_DIRS['figures'] / "prediction_errors.png"),
+        title="Prediction Error Distribution",
+        xlabel="Prediction Error",
+        ylabel="Frequency"
+    )
+    
+    # 4. 保存评估指标
+    from sklearn.metrics import mean_squared_error, r2_score
+    metrics = {
+        'mse': float(mean_squared_error(y_true, y_pred)),
+        'r2': float(r2_score(y_true, y_pred)),
+        'n_samples': len(y_true)
+    }
+    
+    metrics_path = OUTPUT_DIRS['data_extracts'] / "evaluation_metrics.json"
+    with open(metrics_path, 'w') as f:
+        json.dump(metrics, f, indent=2)
+    
+    logging.info(f"✅ 模型评估完成")
+    logging.info(f"📈 MSE: {metrics['mse']:.4f}")
+    logging.info(f"📈 R²: {metrics['r2']:.4f}")
+    
+    return metrics
+
+if __name__ == "__main__":
+    evaluate_model_with_visualization()
+```
+
+---
+
+## 5. 可视化工具使用规范 (Visualization Tool Usage Standards)
+
+### 5.1. 必须使用 VisualizationManager
+所有可视化必须通过标准工具类实现：
+
+```python
+# ✅ 正确的使用方式
+from utils.visualization_utils import VisualizationManager
+
+viz = VisualizationManager()  # 自动加载配置
+viz.create_scatter_plot(...)
+
+# ❌ 禁止直接使用 matplotlib/seaborn
+import matplotlib.pyplot as plt  # 禁止
+plt.scatter(...)  # 禁止
+```
+
+### 5.2. 输出路径规范化
+```python
+# ✅ 标准输出路径设置
+OUTPUT_DIRS = setup_visualization_environment()
+
+# 所有可视化输出必须在对应目录下
+viz.create_scatter_plot(
+    ...,
+    output_path=str(OUTPUT_DIRS['figures'] / "analysis_results.png")  # 使用标准路径
+)
+
+# ❌ 禁止的输出路径
+viz.create_scatter_plot(
+    ..., 
+    output_path="./figure.png"  # 直接放在当前目录
+)
+```
+
+### 5.3. 图表命名规范
+```python
+# ✅ 清晰的英文命名
+"feature_correlation_matrix.png"
+"model_performance_comparison.png" 
+"prediction_accuracy_scatter.png"
+"error_distribution_histogram.png"
+
+# ❌ 不清晰的命名
+"plot1.png"
+"图表.png" 
+"temp.png"
+```
+
+---
+
+## 6. 质量控制与验证 (Quality Control & Validation)
+
+### 6.1. 输出验证检查
+每个可视化脚本必须包含输出验证：
+
+```python
+def validate_visualization_outputs(output_dirs: dict) -> bool:
+    """验证可视化输出质量"""
+    
+    success = True
+    
+    # 检查输出目录
+    if not output_dirs['base'].exists():
+        logging.error(f"❌ 输出目录不存在: {output_dirs['base']}")
+        return False
+        
+    # 检查图片文件
+    image_files = list(output_dirs['figures'].glob("*.png")) + list(output_dirs['figures'].glob("*.pdf"))
+    if not image_files:
+        logging.error(f"❌ 未找到输出图片: {output_dirs['figures']}")
+        return False
+    
+    # 检查文件大小（避免空文件）
+    for img_file in image_files:
+        if img_file.stat().st_size < 10000:  # 小于10KB可能有问题
+            logging.warning(f"⚠️ 图片文件过小: {img_file}")
+            success = False
+    
+    # 检查数据提取文件
+    data_files = list(output_dirs['data_extracts'].glob("*"))
+    if data_files:
+        logging.info(f"✅ 数据提取文件: {len(data_files)} 个")
+    
+    # 检查日志文件
+    log_file = output_dirs['logs'] / "visualization.log"
+    if log_file.exists():
+        logging.info(f"✅ 日志文件存在: {log_file}")
+    
+    if success:
+        logging.info(f"✅ 可视化输出验证通过: {len(image_files)} 个图片文件")
+    
+    return success
+
+# 在脚本末尾调用验证
+if __name__ == "__main__":
+    # ... 执行可视化 ...
+    
+    # 验证输出
+    if validate_visualization_outputs(OUTPUT_DIRS):
+        logging.info(f"🎯 脚本执行成功: {Path(__file__).stem}")
+    else:
+        logging.error(f"❌ 脚本执行有问题: {Path(__file__).stem}")
+        exit(1)
+```
+
+### 6.2. 依赖检查标准
+每个可视化脚本开头必须包含依赖检查：
+
+```python
+def check_dependencies():
+    """检查可视化依赖"""
+    required_packages = ['matplotlib', 'seaborn', 'pandas', 'numpy']
+    missing = []
+    
+    for package in required_packages:
+        try:
+            __import__(package)
+        except ImportError:
+            missing.append(package)
+    
+    if missing:
+        logging.error(f"❌ 缺少依赖: {', '.join(missing)}")
+        logging.info(f"📦 安装命令: mamba install {' '.join(missing)}")
+        exit(1)
+
+# 脚本开头调用
+check_dependencies()
+```
+
+---
+
+## 7. 使用场景示例 (Usage Scenario Examples)
+
+### 7.1. Few-Shot 示例集合
+
+**场景1：快速原型验证（src/模块）**
+```python
+# src/analysis/quick_model_check.py
+# 目标：快速验证模型输出是否合理
+# 格式：PNG（快速查看）
+# 数据：从模型训练结果提取
+
+OUTPUT_DIRS = setup_visualization_environment()
+viz = VisualizationManager()
+
+# 加载模型预测结果
+predictions = pd.read_csv("src/models/outputs/model_predictions/data_extracts/predictions.csv")
+
+# 快速散点图验证
+viz.create_scatter_plot(
+    x_data=predictions['actual'], 
+    y_data=predictions['predicted'],
+    output_path=str(OUTPUT_DIRS['figures'] / "prediction_validation.png"),
+    title="Quick Model Validation",
+    add_trend_line=True
+)
+```
+
+**场景2：实验结果分析（experiments/模块）**
+```python
+# experiments/comparative_study/scripts/05_final_analysis.py  
+# 目标：生成正式的实验报告图表
+# 格式：PNG + PDF（报告用）
+# 数据：汇总多个实验步骤的结果
+
+OUTPUT_DIRS = setup_visualization_environment()
+
+# 设置实验环境的双格式输出
+def save_experiment_plot(viz, data, filename, title):
+    for fmt in ["png", "pdf"]:
+        output_path = OUTPUT_DIRS['figures'] / f"{filename}.{fmt}"
+        # 根据用户要求选择格式...
+```
+
+**场景3：测试结果验证（tests/模块）**  
+```python
+# tests/test_algorithm_accuracy.py
+# 目标：可视化验证算法准确性
+# 格式：PNG（测试报告）
+# 数据：算法输出与预期结果对比
+
+def test_algorithm_accuracy_with_plot():
+    OUTPUT_DIRS = setup_visualization_environment()
+    
+    # 保存测试数据用于分析
+    test_results = pd.DataFrame({
+        'input': test_inputs,
+        'expected': expected_outputs, 
+        'actual': algorithm_outputs
+    })
+    
+    test_data_path = OUTPUT_DIRS['data_extracts'] / "test_comparison_data.csv"
+    test_results.to_csv(test_data_path, index=False)
+    
+    # 生成验证图表
+    viz.create_scatter_plot(
+        x_data=expected_outputs,
+        y_data=algorithm_outputs,
+        output_path=str(OUTPUT_DIRS['figures'] / "algorithm_accuracy_test.png"),
+        title="Algorithm Accuracy Test Results"
+    )
+```
+
+**场景4：数据探索分析**
+```python
+# 任意位置的数据探索脚本
+# 目标：理解数据分布和特征
+# 格式：根据环境自动选择
+# 数据：原始数据集或预处理结果
+
+def explore_dataset(data_path: str):
+    OUTPUT_DIRS = setup_visualization_environment()
+    
+    # 加载数据
+    data = pd.read_csv(data_path)
+    
+    # 保存数据摘要
+    summary_stats = data.describe()
+    summary_path = OUTPUT_DIRS['data_extracts'] / "dataset_summary.csv"
+    summary_stats.to_csv(summary_path)
+    
+    # 生成探索性图表
+    viz = VisualizationManager()
+    
+    # 根据当前环境选择输出格式
+    formats = determine_output_formats()
+    
+    for fmt in formats:
+        correlation_path = OUTPUT_DIRS['figures'] / f"feature_correlations.{fmt}"
+        # 创建相关性热图...
+```
+
+### 7.2. 用户指定格式处理
+```python
+def handle_user_format_preference(user_request: str):
+    """处理用户的格式偏好"""
+    
+    # 解析用户要求
+    if "pdf" in user_request.lower() or "publication" in user_request.lower():
+        return ["png", "pdf"]  # 用于出版的高质量输出
+    elif "quick" in user_request.lower() or "draft" in user_request.lower():
+        return ["png"]         # 快速预览
+    elif "report" in user_request.lower():
+        # 根据所在模块决定
+        return determine_output_formats()
+    else:
+        return ["png"]  # 默认格式
+
+# 使用示例
+def create_visualization_by_request(data, user_request: str):
+    """根据用户要求创建可视化"""
+    
+    OUTPUT_DIRS = setup_visualization_environment()
+    formats = handle_user_format_preference(user_request)
+    
+    logging.info(f"📊 根据用户要求生成格式: {', '.join(formats)}")
+    
+    viz = VisualizationManager()
+    
+    for fmt in formats:
+        output_path = OUTPUT_DIRS['figures'] / f"analysis_result.{fmt}"
+        viz.create_scatter_plot(
+            data=data,
+            output_path=str(output_path),
+            # 其他参数...
+        )
+```
+
+### 7.3. 灵活的使用原则
+- **响应用户需求**：优先按用户明确要求的格式和风格
+- **环境自适应**：在用户没有明确要求时，根据脚本位置自动选择合适的输出策略
+- **保持完整记录**：无论什么场景，都要保存数据提取和执行日志
+- **质量一致性**：所有输出都遵循统一的可视化标准和质量要求
+
+---
+
+## 8. 不同环境的适配 (Environment Adaptation)
+
+### 8.1. src/ 模块中的使用
+```python
+# src/analysis/data_visualizer.py
+from pathlib import Path
+from utils.visualization_utils import VisualizationManager
+
+class DataVisualizer:
+    def __init__(self):
+        # 输出将在项目根目录的 outputs/data_visualizer/ 下
+        self.output_dirs = setup_visualization_environment()
+        self.viz = VisualizationManager()
+        
+    def generate_report(self, data, report_name: str):
+        """生成数据报告"""
+        
+        logging.info(f"📊 生成报告: {report_name}")
+        
+        # 保存报告数据
+        report_data_path = self.output_dirs['data_extracts'] / f"{report_name}_data.csv"
+        data.to_csv(report_data_path, index=False)
+        
+        # 生成各种图表（使用PNG格式，快速迭代）
+        self.viz.create_scatter_plot(
+            ...,
+            output_path=str(self.output_dirs['figures'] / f"{report_name}_correlation.png")
+        )
+        
+        logging.info(f"✅ 报告已生成: {self.output_dirs['base']}")
+
+# 使用示例：从项目根目录运行
+# python src/analysis/data_visualizer.py
+# 输出：project_root/outputs/data_visualizer/
+```
+
+### 8.2. experiments/ 模块中的使用
+```python
+# experiments/protein_analysis/scripts/05_results_visualization.py
+from pathlib import Path
+import sys
+
+# 实验环境特殊的导入设置  
+EXPERIMENT_ROOT = Path.cwd()
+sys.path.append(str(EXPERIMENT_ROOT.parent.parent / "utils"))
+from visualization_utils import VisualizationManager
+
+# 实验输出目录（在实验目录内）
+OUTPUT_DIRS = setup_visualization_environment()
+# 输出：experiments/protein_analysis/outputs/05_results_visualization/
+
+def analyze_experiment_results():
+    """分析实验结果"""
+    
+    logging.info("📊 开始实验结果分析")
+    
+    # 加载之前步骤的数据
+    step2_data = pd.read_csv(EXPERIMENT_ROOT / "outputs" / "02_data_processing" / "data_extracts" / "processed.csv")
+    step4_data = pd.read_csv(EXPERIMENT_ROOT / "outputs" / "04_model_training" / "data_extracts" / "results.csv")
+    
+    # 保存综合分析数据
+    combined_data = merge_analysis_data(step2_data, step4_data)
+    analysis_path = OUTPUT_DIRS['data_extracts'] / "final_analysis.csv"
+    combined_data.to_csv(analysis_path, index=False)
+    
+    # 生成实验报告图表（PNG + PDF格式）
+    viz = VisualizationManager()
+    formats = determine_output_formats()  # 自动检测为experiments环境
+    
+    for fmt in formats:
+        output_path = OUTPUT_DIRS['figures'] / f"final_results.{fmt}"
+        viz.create_box_plot(..., output_path=str(output_path))
+```
+
+### 8.3. tests/ 模块中的使用
+```python
+# tests/test_model_validation.py
+import pytest
+from pathlib import Path
+from utils.visualization_utils import VisualizationManager
+
+class TestModelValidation:
+    def test_model_predictions_with_plots(self):
+        """测试模型预测并生成验证图表"""
+        
+        # 测试专用输出目录（在tests目录下）
+        output_dirs = setup_visualization_environment()
+        # 输出：tests/outputs/test_model_validation/
+        
+        viz = VisualizationManager()
+        
+        # 执行测试
+        predictions = model.predict(test_data)
+        accuracy = calculate_accuracy(predictions, expected)
+        
+        # 保存测试数据用于分析
+        test_results = pd.DataFrame({
+            'expected': expected,
+            'predicted': predictions,
+            'accuracy': accuracy
+        })
+        
+        test_data_path = output_dirs['data_extracts'] / "test_results.csv"
+        test_results.to_csv(test_data_path, index=False)
+        
+        # 生成测试验证图表（PNG格式，快速查看）
+        viz.create_scatter_plot(
+            x_data=expected,
+            y_data=predictions,
+            output_path=str(output_dirs['figures'] / "prediction_validation.png"),
+            title="Model Prediction Validation Test"
+        )
+        
+        # 断言测试结果
+        assert accuracy > 0.9
+        
+        logging.info(f"✅ 测试通过，验证图表已保存: {output_dirs['figures']}")
+```
+
+---
+
+## 9. AI 实施指南 (AI Implementation Guidelines)
+
+### 9.1. 生成可视化代码时的检查清单
+- [ ] 确认脚本输出目录设置正确 (`outputs/<script_name>/` 包含 figures、data_extracts、logs)
+- [ ] 使用 `VisualizationManager` 而非直接调用 matplotlib
+- [ ] 所有图表标题、标签使用英文
+- [ ] 包含依赖检查逻辑
+- [ ] 设置日志记录到 logs/ 目录
+- [ ] 保存处理后的数据到 data_extracts/ 目录  
+- [ ] 根据模块类型选择合适的输出格式（PNG vs PNG+PDF）
+- [ ] 记录数据来源（特别是从其他实验提取数据时）
+
+### 9.2. 代码生成模板
+```python
+#!/usr/bin/env python3
+"""
+{script_description}
+
+输入: {input_description}
+输出: ./outputs/{script_name}/
+     ├── figures/     - 可视化图表
+     ├── data_extracts/ - 数据提取结果
+     └── logs/        - 执行日志
+
+作者: AI Assistant
+日期: {current_date}  
+"""
+
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import logging
+import json
+
+# 导入可视化工具
+from utils.visualization_utils import VisualizationManager
+
+# 设置输出环境
+OUTPUT_DIRS = setup_visualization_environment()
+
+def main():
+    """主函数"""
+    logging.info(f"📊 开始执行: {Path(__file__).stem}")
+    logging.info(f"📁 输出目录: {OUTPUT_DIRS['base']}")
+    
+    # 1. 数据加载和处理
+    data = load_and_process_data()
+    
+    # 2. 保存处理后的数据
+    save_processed_data(data)
+    
+    # 3. 可视化分析
+    create_visualizations(data)
+    
+    # 4. 验证输出
+    if validate_outputs():
+        logging.info(f"✅ 执行成功")
+    else:
+        logging.error(f"❌ 执行失败")
+        exit(1)
+
+def load_and_process_data():
+    """加载和处理数据"""
+    logging.info("📥 加载数据...")
+    # TODO: 实现数据加载逻辑
+    pass
+
+def save_processed_data(data):
+    """保存处理后的数据到data_extracts"""
+    logging.info("💾 保存数据提取结果...")
+    
+    # 保存主要数据
+    data_path = OUTPUT_DIRS['data_extracts'] / "processed_data.csv"
+    data.to_csv(data_path, index=False)
+    
+    # 保存数据摘要
+    summary_path = OUTPUT_DIRS['data_extracts'] / "data_summary.json"
+    summary = {
+        "total_records": len(data),
+        "columns": list(data.columns),
+        "numeric_columns": list(data.select_dtypes(include=[np.number]).columns)
+    }
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+    
+    logging.info(f"💾 数据已保存到: {OUTPUT_DIRS['data_extracts']}")
+
+def create_visualizations(data):
+    """创建可视化图表"""
+    logging.info("🎨 生成可视化图表...")
+    
+    viz = VisualizationManager()
+    
+    # 根据环境确定输出格式
+    formats = determine_output_formats()
+    
+    # TODO: 实现具体的可视化逻辑
+    pass
+
+def validate_outputs():
+    """验证输出质量"""
+    # TODO: 实现输出验证逻辑
+    return True
+
+if __name__ == "__main__":
+    main()
+```
+
+### 9.3. 依赖检查与错误处理
+在生成可视化代码时，必须包含以下检查：
+
+```python
+# 依赖包检查
+required_packages = ['matplotlib', 'seaborn', 'pandas', 'numpy', 'pyyaml', 'scipy']
+missing_packages = []
+
+for package in required_packages:
+    try:
+        __import__(package)
+    except ImportError:
+        missing_packages.append(package)
+
+if missing_packages:
+    logging.error(f"❌ 缺少依赖包: {', '.join(missing_packages)}")
+    logging.info(f"📦 安装命令: mamba install {' '.join(missing_packages)}")
+    logging.info("⚠️  请安装依赖包后再运行")
+    exit(1)
+```
+
+---
+
+## 10. 项目集成指南 (Project Integration Guidelines)
+
+### 10.1. 在不同模块中的使用
+
+**在 src/ 源代码中**:
+```python
+# src/analysis/visualization.py
+from utils.visualization_utils import VisualizationManager
+
+class DataAnalyzer:
+    def __init__(self):
+        self.output_dirs = setup_visualization_environment()
+        self.viz = VisualizationManager("config/visualization_style.yaml")
+    
+    def generate_report_plots(self, data):
+        """生成报告图表"""
+        self.viz.create_scatter_plot(...)
+        self.viz.create_box_plot(...)
+```
+
+**在 tests/ 测试代码中**:
+```python
+# tests/test_visualization.py
+import pytest
+from utils.visualization_utils import VisualizationManager
+
+class TestVisualization:
+    def test_scatter_plot_generation(self, sample_data):
+        """测试散点图生成"""
+        output_dirs = setup_visualization_environment()
+        viz = VisualizationManager()
+        
+        viz.create_scatter_plot(
+            sample_data['x'], sample_data['y'],
+            output_path=str(output_dirs['figures'] / "test_scatter.png"),
+            title="Test Scatter Plot"
+        )
+        
+        assert (output_dirs['figures'] / "test_scatter.png").exists()
+```
+
+**在 experiments/ 实验代码中**:
+```python
+# experiments/protein_analysis/scripts/03_visualization.py
+import sys
+from pathlib import Path
+
+# 添加工具路径
+sys.path.append(str(Path(__file__).parent.parent.parent.parent / "utils"))
+from visualization_utils import VisualizationManager
+
+# 实验特定配置
+EXPERIMENT_ROOT = Path.cwd()
+OUTPUT_DIRS = setup_visualization_environment()
+
+viz = VisualizationManager()  # 使用默认或找到的配置
+```
+
+### 10.2. 配置文件管理策略
+1. **项目级配置**: `config/visualization_style.yaml` - 整个项目的统一配置
+2. **实验级配置**: `experiments/<n>/config/visualization.yaml` - 实验特定设置  
+3. **优先级**: 实验级 > 项目级 > 默认配置
+
+---
+
+## 11. 故障排除与优化 (Troubleshooting & Optimization)
+
+### 11.1. 常见问题解决
+- **字体问题**: 确保使用跨平台兼容的字体
+- **颜色显示**: 验证颜色在不同显示器上的一致性  
+- **文件权限**: 确保输出目录有写入权限
+- **内存使用**: 大数据集可视化时的内存优化
+
+### 11.2. 性能优化建议
+- **批量处理**: 多图表时使用批量生成模式
+- **缓存配置**: 避免重复加载配置文件
+- **异步保存**: 大图表使用异步保存机制
+
+---
+
+## 12. 版本控制与文档 (Version Control & Documentation)
+
+### 12.1. 版本控制要求
+- **配置文件**: `visualization_style.yaml` 必须纳入版本控制
+- **工具类**: `visualization_utils.py` 必须纳入版本控制
+- **输出图表**: 一般不纳入版本控制，但重要结果可考虑保留
+
+### 12.2. 文档要求
+- **README**: 项目 README 中说明可视化标准
+- **注释**: 复杂可视化代码必须有详细注释
+- **示例**: 提供标准的使用示例代码
+
+---
+
+通过严格遵循这套可视化使用规范，确保项目中每个脚本的可视化输出都能正确归档、风格统一，并为数据分析和结果验证提供可靠的支持。

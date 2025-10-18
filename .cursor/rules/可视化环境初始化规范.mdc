@@ -1,0 +1,139 @@
+---
+description: "可视化环境初始化规范"
+globs: ["**/config/**", "**/utils/**", "**/pyproject.toml"]
+alwaysApply: false
+---
+
+<!--
+本模板由 Claude Sonnet 4 创建，旨在为 AI 助手提供可视化环境的标准初始化流程。
+
+使用说明：
+AI 助手你好，请你将自己定位为一名项目架构师和可视化系统设计专家。
+当我要求初始化项目的可视化环境时，你必须严格按照本文件的规范创建完整的可视化基础设施。
+这包括：复制标准配置文件、创建可视化工具类、设置依赖管理、以及提供使用示例。
+你的目标是为项目建立一套完整、可复用、高质量的可视化支持系统。
+-->
+
+# 可视化环境初始化规范 (Visualization Environment Setup Specification)
+
+## 1. 初始化触发条件 (Initialization Triggers)
+
+当满足以下任一条件时，应启动可视化环境初始化：
+- 用户明确要求"初始化可视化环境"或"设置可视化功能"
+- 项目初始化时用户表示需要数据可视化功能
+- 检测到项目中有可视化需求但缺少必要的配置文件
+
+---
+
+## 2. 标准文件结构创建 (Standard File Structure Creation)
+
+### 2.1. 必须创建的文件
+```
+project_root/
+├── config/
+│   └── visualization_style.yaml     # [必须] 可视化风格配置
+├── utils/
+│   └── visualization_utils.py       # [必须] 可视化工具类
+└── examples/
+    └── visualization_examples.py    # [推荐] 使用示例
+```
+
+### 2.2. 配置文件内容获取策略
+AI 助手必须从标准模板复制配置文件：
+
+**标准模板位置**: `.cursor/visual/` 目录中存储所有标准模板
+
+```python
+def setup_visualization_config(target_path: str = "config/visualization_style.yaml"):
+    """设置可视化配置文件"""
+    
+    # 从标准模板目录复制配置文件
+    source_config = Path(".cursor/visual/visualization_style.yaml")
+    
+    if source_config.exists():
+        # 复制标准配置到项目目录
+        import shutil
+        shutil.copy2(source_config, target_path)
+        logging.info(f"📋 已从标准模板复制配置文件到: {target_path}")
+    else:
+        logging.error("❌ 未找到标准配置模板，请确保 .cursor/visual/ 目录存在")
+        return False
+    
+    return target_path
+```
+
+**AI 助手必须执行的操作**:
+1. 检查 `.cursor/visual/visualization_style.yaml` 是否存在
+2. 复制完整的配置文件到项目的 `config/` 目录
+3. 根据用户需求调整复制后的配置文件（如颜色方案）
+4. 保持 `.cursor/visual/` 中的标准模板不变
+
+### 2.3. 工具类文件获取策略 (`utils/visualization_utils.py`)
+同样从标准模板目录复制：
+
+```python
+def setup_visualization_utils(target_path: str = "utils/visualization_utils.py"):
+    """设置可视化工具类文件"""
+    
+    # 从标准模板目录复制工具类
+    source_utils = Path(".cursor/visual/visualization_utils.py")
+    
+    if source_utils.exists():
+        # 复制标准工具类到项目目录
+        import shutil
+        shutil.copy2(source_utils, target_path)
+        logging.info(f"🔧 已从标准模板复制工具类到: {target_path}")
+    else:
+        logging.error("❌ 未找到可视化工具类模板，请确保 .cursor/visual/ 目录完整")
+        return False
+    
+    return True
+```
+
+**标准模板目录结构**:
+```
+.cursor/visual/
+├── visualization_style.yaml      # 标准配置模板
+├── visualization_utils.py        # 标准工具类模板
+└── visualization_examples.py     # 标准示例模板（可选）
+```
+
+---
+
+## 3. 依赖管理设置 (Dependency Management)
+
+### 3.1. pyproject.toml 更新
+在项目的 `pyproject.toml` 中添加可视化相关依赖：
+
+```toml
+[project.optional-dependencies]
+visualization = [
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0.0",
+    "scipy>=1.10.0"
+]
+```
+
+---
+
+## 4. AI 执行检查清单 (AI Execution Checklist)
+
+### 4.1. 初始化前确认
+- [ ] 确认用户明确要求初始化可视化环境
+- [ ] 检查项目是否已存在可视化配置（避免覆盖）
+- [ ] 检查 `.cursor/visual/` 标准模板目录是否存在
+- [ ] 确认项目根目录和基本结构
+
+### 4.2. 文件创建检查
+- [ ] 从 `.cursor/visual/` 复制 `config/visualization_style.yaml`
+- [ ] 从 `.cursor/visual/` 复制 `utils/visualization_utils.py`  
+- [ ] 从 `.cursor/visual/` 复制 `examples/visualization_examples.py`（如存在）
+- [ ] 更新 `pyproject.toml` 依赖配置
+- [ ] 验证标准模板目录的完整性
+
+---
+
+通过这套初始化规范，确保每个项目都能获得标准、完整、可定制的可视化支持环境。

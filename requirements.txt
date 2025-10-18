@@ -1,0 +1,11 @@
+# Core
+pandas>=2.2
+openpyxl>=3.1
+python-dotenv>=1.0.1
+jinja2>=3.1
+pydantic>=2.7
+tqdm>=4.66
+
+# LLM + structured outputs
+openai>=1.46
+outlines[openai]>=1.0.7
