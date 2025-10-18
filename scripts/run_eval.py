@@ -19,7 +19,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from queryplan_eval.schemas import QueryResult, normalize_result
 from queryplan_eval.renderer import render_system_prompt, read_raw_prompt
-from queryplan_eval.data_utils import load_queries
+from queryplan_eval.data_utils import load_queries_with_gold_labels
 
 T = TypeVar('T')
 
@@ -69,15 +69,14 @@ def call_outlines(model: Any, prompt_or_chat: Any, *, temperature: float, output
         parsed = result
     return parsed, raw, dt
 
-
-def main():
+def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="Path to 12w_query_label.xlsx")
     parser.add_argument("--n", type=int, default=50)
     parser.add_argument("--today", type=str, default=None)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument(
-        "--model", type=str, default=os.environ.get("QWEN_MODEL", "qwen3-7b-instruct")
+        "--model", type=str, default=os.environ.get("QWEN_MODEL", "qwen-flash")
     )
     parser.add_argument(
         "--base-url",
@@ -113,7 +112,13 @@ def main():
             / "original_system_prompt.txt"
         ),
     )
-    args = parser.parse_args()
+
+    return parser.parse_args()
+
+
+def main():
+    
+    args = parser_args()
 
     load_dotenv()
     api_key = os.environ.get("qwen_key") or os.environ.get("OPENAI_API_KEY")
@@ -140,11 +145,12 @@ def main():
     else:
         system_old = read_raw_prompt(args.old_prompt)
 
-    df = load_queries(args.data, n=args.n)
+    df = load_queries_with_gold_labels(args.data, n=args.n)
 
     rows = []
     for i, row in tqdm(df.iterrows(), total=len(df), desc="Evaluating"):
         q = str(row["query"]).strip()
+        gold_label = str(row["plan"]).strip() if not pd.isna(row["plan"]) else None
         for variant, system_prompt in [("new", system_new), ("old", system_old)]:
             chat = build_chat(system_prompt, q)
             try:
@@ -184,14 +190,16 @@ def main():
                     "idx": i,
                     "variant": variant,
                     "query": q,
+                    "system_prompt": system_prompt,
+                    "raw_response": raw,
                     "ok": ok,
                     "type": out_type,
                     "n_plans": n_plans,
                     "latency_sec": dt,
-                    "raw": raw,
-                    "normalized": json.dumps(norm, ensure_ascii=False)
+                    "parsed": json.dumps(norm, ensure_ascii=False)
                     if norm is not None
                     else None,
+                    "gold_label": gold_label,
                     "error": err,
                 }
             )
@@ -229,7 +237,7 @@ def main():
 
     # Diffs: where normalized string differs between variants
     pivot = res.pivot_table(
-        index=["idx", "query"], columns="variant", values="normalized", aggfunc="first"
+        index=["idx", "query"], columns="variant", values="parsed", aggfunc="first"
     ).reset_index()
     
     # 安全地处理可能不存在的列
