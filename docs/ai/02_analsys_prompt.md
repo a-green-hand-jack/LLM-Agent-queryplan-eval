@@ -650,7 +650,252 @@ outputs/v4/
 ### 7.5 后续计划
 
 1. ✅ **已完成**: 实现完整的分析脚本
-2. ⏳ **进行中**: 基于分析结果优化 NEW prompt（v5）
-3. 📋 **待办**: 扩大测试数据集（当前 50 样本 → 目标 500+ 样本）
-4. 📋 **待办**: 实现自动化回归测试流程
-5. 📋 **待办**: 添加可视化图表（对比柱状图、趋势线等）
+2. ✅ **已完成**: 实现基于 LLM 的判别系统
+3. ⏳ **进行中**: 基于分析结果优化 NEW prompt（v5）
+4. 📋 **待办**: 扩大测试数据集（当前 50 样本 → 目标 500+ 样本）
+5. 📋 **待办**: 实现自动化回归测试流程
+6. 📋 **待办**: 添加可视化图表（对比柱状图、趋势线等）
+
+---
+
+## 八、LLM 判别系统
+
+### 8.1 系统概述
+
+为了更客观、更全面地评估 prompt 质量，我们引入了基于 LLM 的自动判别系统。该系统使用 `qwen-max` 模型作为评判器，对比新旧两个 prompt 的输出，判断哪个更接近金标准。
+
+**核心优势**:
+- 🤖 **自动化**: 无需人工逐个对比
+- 📊 **多维度**: 从结构、语义、完整性、格式四个维度评估
+- 🎯 **置信度**: 提供判断的置信度评分
+- 📝 **可解释**: 给出每个判断的理由
+
+### 8.2 实现架构
+
+**文件结构**:
+```
+src/queryplan_eval/
+├── schemas.py                        # 新增 JudgementResult 和 DimensionScores
+└── prompts/
+    └── judge_system_prompt.j2        # 判别系统提示
+
+scripts/
+└── llm_judge.py                      # LLM 判别主脚本
+```
+
+**核心组件**:
+
+#### 1. 判别 Schema (`schemas.py`)
+
+```python
+class DimensionScores(BaseModel):
+    """各维度评分（0-10分）"""
+    structure_a: float      # 候选A的结构完整性
+    structure_b: float      # 候选B的结构完整性
+    semantic_a: float       # 候选A的语义准确性
+    semantic_b: float       # 候选B的语义准确性
+    completeness_a: float   # 候选A的信息完整度
+    completeness_b: float   # 候选B的信息完整度
+    format_a: float         # 候选A的格式规范性
+    format_b: float         # 候选B的格式规范性
+
+class JudgementResult(BaseModel):
+    """LLM 判别结果"""
+    winner: str             # "candidate_a", "candidate_b", 或 "tie"
+    confidence: float       # 置信度 0.0-1.0
+    reason: str             # 判断理由
+    dimensions: DimensionScores  # 各维度详细评分
+```
+
+#### 2. 判别提示 (`judge_system_prompt.j2`)
+
+**评估维度**:
+- **结构完整性（30%）**: JSON 格式、字段完整性、数据类型
+- **语义准确性（40%）**: domain 识别、is_personal 判断、query 提取
+- **信息完整度（20%）**: 关键信息覆盖、计划数量合理性
+- **格式规范性（10%）**: 日期格式、null 处理、整体清晰度
+
+**特殊处理**:
+- 拒答场景的正确性判断
+- 解析失败的降级处理
+- 信息缺失的宽容评分
+
+#### 3. 判别脚本 (`llm_judge.py`)
+
+**主要流程**:
+1. 加载 `eval_results.csv` 评估数据
+2. 准备判别样本对（new vs old）
+3. 构建判别请求，调用 qwen-max
+4. 收集并分析判别结果
+5. 生成多格式报告
+
+**输出文件**:
+- `llm_judgement_results.csv`: 每个样本的详细判别结果
+- `llm_judgement_analysis.json`: 统计分析数据
+- `llm_judgement_report.md`: 可读性强的对比报告
+
+### 8.3 使用方法
+
+#### 基本用法
+
+```bash
+# 使用默认 qwen-max 模型进行判别
+uv run python scripts/llm_judge.py outputs/v4/eval_results.csv
+
+# 指定输出目录
+uv run python scripts/llm_judge.py outputs/v4/eval_results.csv --outdir outputs/v4
+
+# 使用其他模型
+uv run python scripts/llm_judge.py outputs/v4/eval_results.csv --model qwen-turbo
+```
+
+#### 高级参数
+
+```bash
+# 调整采样温度（增加多样性）
+uv run python scripts/llm_judge.py outputs/v4/eval_results.csv --temperature 0.3
+
+# 使用自定义判别提示
+uv run python scripts/llm_judge.py outputs/v4/eval_results.csv \
+  --judge-prompt path/to/custom_judge_prompt.j2
+
+# 指定 API 端点
+uv run python scripts/llm_judge.py outputs/v4/eval_results.csv \
+  --base-url https://api.example.com/v1
+```
+
+### 8.4 判别指标说明
+
+#### 胜负统计
+- **NEW 胜出**: candidate_a (new prompt) 更接近金标准的次数
+- **OLD 胜出**: candidate_b (old prompt) 更接近金标准的次数
+- **平局**: 两者质量相当或无法判断
+- **判别失败**: LLM 无法给出有效判断
+
+#### 置信度分级
+- **0.9-1.0**: 非常确定（判别结果可靠）
+- **0.7-0.9**: 比较确定（结果有一定参考价值）
+- **0.5-0.7**: 有一定把握（需要结合其他指标）
+- **0.0-0.5**: 不太确定（判别结果参考价值较低）
+
+#### 维度得分
+每个维度满分 10 分：
+- **8-10分**: 优秀（Excellent）
+- **6-8分**: 良好（Good）
+- **4-6分**: 中等（Fair）
+- **0-4分**: 较差（Poor）
+
+#### 综合得分
+根据各维度加权计算（满分 10 分）：
+```
+综合得分 = 结构×0.3 + 语义×0.4 + 完整度×0.2 + 格式×0.1
+```
+
+### 8.5 判别结果示例
+
+#### 输出报告结构
+
+**CSV 详细结果** (`llm_judgement_results.csv`):
+```csv
+idx,query,winner,confidence,reason,latency_sec,structure_a_new,structure_b_old,semantic_a_new,semantic_b_old,...
+0,今天跑了多久,candidate_a,0.92,"NEW在结构完整性和语义准确性上显著优于OLD",2.34,9.5,3.2,8.7,4.1,...
+```
+
+**Markdown 报告** (`llm_judgement_report.md`):
+```markdown
+# LLM 判别报告
+
+## 📊 胜负统计
+- 总判别数: 48
+- **NEW 胜出**: 35 (72.9%)
+- **OLD 胜出**: 8 (16.7%)
+- **平局**: 5 (10.4%)
+
+## 🎯 高置信度判别（confidence ≥ 0.7）
+- 高置信判别数: 42
+- NEW 胜出: 32
+- OLD 胜出: 7
+
+## 📈 维度得分对比（满分10分）
+| 维度 | NEW | OLD | 差异 | 优势方 |
+|------|-----|-----|------|--------|
+| 结构完整性 | 9.23 | 2.45 | +6.78 | ✅ NEW |
+| 语义准确性 | 7.89 | 5.12 | +2.77 | ✅ NEW |
+| 信息完整度 | 8.01 | 4.56 | +3.45 | ✅ NEW |
+| 格式规范性 | 8.67 | 6.23 | +2.44 | ✅ NEW |
+
+## 🏆 综合得分
+- **NEW Prompt**: 8.42 分
+- **OLD Prompt**: 4.18 分
+- **差异**: +4.24 分
+
+## 💡 结论
+✅ **NEW Prompt 显著优于 OLD Prompt**
+   - 胜率: 72.9%
+   - 综合得分: 8.42 vs 4.18
+
+平均置信度: 0.87
+```
+
+### 8.6 与规则分析的对比
+
+| 维度 | 规则分析 | LLM 判别 | 互补性 |
+|------|---------|---------|--------|
+| **客观性** | ✅ 完全客观 | ⚠️ 依赖模型 | 规则提供基准 |
+| **全面性** | ⚠️ 预定义指标 | ✅ 多维度评估 | LLM 发现新问题 |
+| **可解释性** | ✅ 明确规则 | ✅ 提供理由 | 双重验证 |
+| **计算成本** | ✅ 低成本 | ❌ 需要 API 调用 | 规则快速筛选 |
+| **适应性** | ❌ 需要手动调整 | ✅ 自适应能力强 | LLM 应对新场景 |
+
+**推荐使用策略**:
+1. **规则分析**: 用于快速筛选和基础质量检查
+2. **LLM 判别**: 用于深度对比和边界案例判断
+3. **结合使用**: 规则分析不足 70 分时，使用 LLM 判别进行二次验证
+
+### 8.7 注意事项
+
+⚠️ **成本控制**:
+- 每次判别需要调用 qwen-max API
+- 建议先在小样本（10-20个）上测试
+- 确认效果后再扩大到全量数据
+
+⚠️ **判别质量**:
+- LLM 判别不是绝对真理，仍需人工抽查验证
+- 低置信度（<0.5）的判断应该忽略或复核
+- 关注高置信度判别的一致性
+
+⚠️ **模型依赖**:
+- 判别质量依赖于所用模型的能力
+- 不同模型可能给出不同的判断
+- 建议使用较强的模型（qwen-max 或 qwen-plus）
+
+⚠️ **特殊情况**:
+- 两个候选都失败时会跳过判别
+- 金标签缺失或无效时可能影响判断准确性
+- 拒答场景需要特别关注判别逻辑
+
+### 8.8 改进方向
+
+基于初步实现，后续可以优化的方向：
+
+1. **多评判器集成**:
+   - 使用多个不同的 LLM 进行判别
+   - 通过投票或加权平均提高判断可靠性
+
+2. **人类反馈回路**:
+   - 收集人类专家的判别结果
+   - 与 LLM 判别对比，持续优化提示
+
+3. **细粒度分析**:
+   - 针对不同类型的查询（时间、统计、拒答）分别评估
+   - 识别 prompt 的优势和劣势领域
+
+4. **自动化工作流**:
+   - 集成到 CI/CD 流程
+   - 每次 prompt 修改自动触发判别
+   - 生成趋势报告
+
+5. **成本优化**:
+   - 先用规则分析过滤明显的胜负
+   - 仅对模糊案例使用 LLM 判别
+   - 使用更便宜的模型进行初步筛选

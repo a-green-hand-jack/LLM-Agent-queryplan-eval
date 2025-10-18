@@ -63,3 +63,33 @@ def normalize_result(obj: QueryResult) -> dict:
         return {"refuse": True, "reason": obj.refuse_reason}
     else:
         return {"plans": [p.model_dump() for p in obj.plans]}
+
+
+class DimensionScores(BaseModel):
+    """各维度评分"""
+    structure_a: float = Field(ge=0, le=10, description="候选A的结构完整性得分")
+    structure_b: float = Field(ge=0, le=10, description="候选B的结构完整性得分")
+    semantic_a: float = Field(ge=0, le=10, description="候选A的语义准确性得分")
+    semantic_b: float = Field(ge=0, le=10, description="候选B的语义准确性得分")
+    completeness_a: float = Field(ge=0, le=10, description="候选A的信息完整度得分")
+    completeness_b: float = Field(ge=0, le=10, description="候选B的信息完整度得分")
+    format_a: float = Field(ge=0, le=10, description="候选A的格式规范性得分")
+    format_b: float = Field(ge=0, le=10, description="候选B的格式规范性得分")
+
+
+class JudgementResult(BaseModel):
+    """LLM 判别结果"""
+    winner: str = Field(
+        description="获胜者: 'candidate_a', 'candidate_b', 或 'tie'"
+    )
+    confidence: float = Field(
+        ge=0.0, le=1.0,
+        description="判断置信度，范围 0.0-1.0"
+    )
+    reason: str = Field(
+        max_length=200,
+        description="判断理由，不超过100字"
+    )
+    dimensions: DimensionScores = Field(
+        description="各维度的详细评分"
+    )
