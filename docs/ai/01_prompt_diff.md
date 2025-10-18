@@ -176,6 +176,28 @@ df = load_queries(args.data, n=args.n)  # 仍然返回 query
 - [ ] 分析 prompt 效果差异
 - [ ] 生成最终报告
 
+#### 技术改进 (2024-10-18)
+
+**✅ 流式 CSV 写入** - 提升用户体验:
+- 改为逐条记录写入 CSV，每处理完一条就立即保存
+- 使用 Python `csv.DictWriter` 替代 DataFrame 批量写入
+- 加入 `csv_file.flush()` 确保数据立即写入磁盘
+- 优势：
+  - 可以实时查看进度和中间结果
+  - 即使程序中途中断，也能保留已处理的结果
+  - 支持非常大的数据集而不需占用大量内存
+
+**实现细节**:
+```python
+# 初始化
+csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+csv_writer.writeheader()
+
+# 循环中每处理一条记录
+csv_writer.writerow(record)
+csv_file.flush()  # 立即保存到磁盘
+```
+
 #### 技术细节
 
 **新的输出 CSV 结构**:

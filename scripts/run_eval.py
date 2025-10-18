@@ -4,6 +4,7 @@ import time
 import json
 import argparse
 import warnings
+import csv
 from pathlib import Path
 from typing import Any, Tuple, Optional, Type, TypeVar
 from dotenv import load_dotenv
@@ -88,7 +89,7 @@ def parser_args():
     parser.add_argument(
         "--outdir",
         type=str,
-        default=str(Path(__file__).resolve().parents[1] / "outputs"),
+        default=str(Path(__file__).resolve().parents[1] / "outputs/v2"),
     )
     parser.add_argument(
         "--new-prompt",
@@ -98,7 +99,7 @@ def parser_args():
             / "src"
             / "queryplan_eval"
             / "prompts"
-            / "queryplan_system_prompt.j2"
+            / "queryplan_system_prompt_v2.j2"
         ),
     )
     parser.add_argument(
@@ -147,10 +148,23 @@ def main():
 
     df = load_queries_with_gold_labels(args.data, n=args.n)
 
+    # 准备 CSV 写入器
+    csv_path = outdir / "eval_results.csv"
+    csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
+    
+    # 定义 CSV 列
+    fieldnames = [
+        "idx", "variant", "query", "raw_response", "ok", "type", 
+        "n_plans", "latency_sec", "parsed", "gold_label", "error"
+    ]
+    csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+    csv_writer.writeheader()  # 写入表头
+    csv_file.flush()
+    
     rows = []
     for i, row in tqdm(df.iterrows(), total=len(df), desc="Evaluating"):
         q = str(row["query"]).strip()
-        gold_label = str(row["plan"]).strip() if not pd.isna(row["plan"]) else None
+        gold_label = str(row["plan"]).strip() if not pd.isna(row["plan"]) else None # type: ignore
         for variant, system_prompt in [("new", system_new), ("old", system_old)]:
             chat = build_chat(system_prompt, q)
             try:
@@ -185,27 +199,31 @@ def main():
                 err = str(e)
                 norm = None
 
-            rows.append(
-                {
-                    "idx": i,
-                    "variant": variant,
-                    "query": q,
-                    "system_prompt": system_prompt,
-                    "raw_response": raw,
-                    "ok": ok,
-                    "type": out_type,
-                    "n_plans": n_plans,
-                    "latency_sec": dt,
-                    "parsed": json.dumps(norm, ensure_ascii=False)
-                    if norm is not None
-                    else None,
-                    "gold_label": gold_label,
-                    "error": err,
-                }
-            )
+            record = {
+                "idx": i,
+                "variant": variant,
+                "query": q,
+                "raw_response": raw,
+                "ok": ok,
+                "type": out_type,
+                "n_plans": n_plans,
+                "latency_sec": dt,
+                "parsed": json.dumps(norm, ensure_ascii=False)
+                if norm is not None
+                else None,
+                "gold_label": gold_label,
+                "error": err,
+            }
+            
+            # 立即写入 CSV
+            csv_writer.writerow(record)
+            csv_file.flush()
+            rows.append(record)
 
-    res = pd.DataFrame(rows)
-    res.to_csv(outdir / "eval_results.csv", index=False)
+    csv_file.close()
+
+    # 将结果读取回内存用于后续统计分析
+    res = pd.read_csv(csv_path)
 
     # Summary
     def summarise(dfv):
