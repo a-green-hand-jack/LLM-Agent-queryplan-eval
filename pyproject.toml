@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-    { name = "SFB Lab, KAUST", email = "jieke@kaust.edu.sa" },
+    { name = "Jieke Wu, SFB Lab, KAUST", email = "jieke.wu@kaust.edu.sa" },
 ]
 keywords = [
     "llm",
