@@ -11,6 +11,26 @@ class Plan(BaseModel):
     food: Optional[str] = None
 
 
+class ReasoningSteps(BaseModel):
+    """CoT 推理步骤"""
+    query_analysis: str = Field(
+        description="分析用户问题的意图和关键信息"
+    )
+    domain_identification: str = Field(
+        description="识别问题所属的领域（健康/运动/其他）"
+    )
+    time_calculation: Optional[str] = Field(
+        default=None,
+        description="如有时间相关内容，展示计算过程"
+    )
+    refuse_check: str = Field(
+        description="检查是否应该拒答及原因"
+    )
+    final_decision: str = Field(
+        description="最终决策及参数提取结果"
+    )
+
+
 class QueryResult(BaseModel):
     """统一的查询结果格式，避免 Union 类型以兼容 Qwen API
     
@@ -20,19 +40,31 @@ class QueryResult(BaseModel):
     """
     model_config = ConfigDict(json_schema_extra={
         "example": {
+            "reasoning": {
+                "query_analysis": "用户询问今天的睡眠情况",
+                "domain_identification": "属于健康领域-睡眠场景",
+                "time_calculation": "今天是2025年10月19日，查询今天的睡眠",
+                "refuse_check": "不属于拒答情形，是正常的个人数据查询",
+                "final_decision": "提取睡眠领域的个人查询计划"
+            },
             "plans": [
                 {
-                    "domain": "health",
-                    "sub": "exercise",
+                    "domain": "睡眠",
+                    "sub": None,
                     "is_personal": True,
-                    "time": "morning",
-                    "food": "breakfast"
+                    "time": "2025年10月19日",
+                    "food": None
                 }
             ],
             "refused": False,
-            "refuse_reason": None
+            "refuse_reason": ""
         }
     })
+    
+    reasoning: Optional[ReasoningSteps] = Field(
+        default=None,
+        description="Chain-of-Thought 推理过程（可选，启用 CoT 时填充）"
+    )
     
     plans: List[Plan] = Field(
         default_factory=list,
@@ -50,19 +82,28 @@ class QueryResult(BaseModel):
     )
 
 
-def normalize_result(obj: QueryResult) -> dict:
+def normalize_result(obj: QueryResult, include_reasoning: bool = False) -> dict:
     """将 QueryResult 对象规范化为字典格式以便序列化
     
     Args:
         obj: QueryResult 对象
+        include_reasoning: 是否在输出中包含 reasoning 字段
         
     Returns:
         规范化后的字典，格式统一便于下游处理
     """
+    result: dict = {}
+    
     if obj.refused:
-        return {"refuse": True, "reason": obj.refuse_reason}
+        result = {"refuse": True, "reason": obj.refuse_reason}
     else:
-        return {"plans": [p.model_dump() for p in obj.plans]}
+        result = {"plans": [p.model_dump() for p in obj.plans]}
+    
+    # 如果启用且存在 reasoning，添加到结果中
+    if include_reasoning and obj.reasoning is not None:
+        result["reasoning"] = obj.reasoning.model_dump()
+    
+    return result
 
 
 class DimensionScores(BaseModel):

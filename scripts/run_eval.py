@@ -113,6 +113,11 @@ def parser_args():
             / "original_system_prompt.txt"
         ),
     )
+    parser.add_argument(
+        "--enable-cot",
+        action="store_true",
+        help="启用 Chain-of-Thought 推理（使用 v6 CoT prompt）"
+    )
 
     return parser.parse_args()
 
@@ -137,7 +142,20 @@ def main():
 
     # Prepare prompts
     today = args.today or time.strftime("%Y年%m月%d日")
-    system_new = render_system_prompt(args.new_prompt, today=today)
+    
+    # 如果启用 CoT，使用 v6 CoT prompt
+    if args.enable_cot:
+        cot_prompt_path = str(
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "queryplan_eval"
+            / "prompts"
+            / "queryplan_system_prompt_v6_cot.j2"
+        )
+        system_new = render_system_prompt(cot_prompt_path, today=today)
+    else:
+        system_new = render_system_prompt(args.new_prompt, today=today)
+    
     if not Path(args.old_prompt).exists():
         warnings.warn(
             f"Old prompt not found at {args.old_prompt}. Please paste your baseline prompt there."
@@ -157,11 +175,20 @@ def main():
     csv_path = outdir / "eval_results.csv"
     csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
     
-    # 定义 CSV 列
+    # 定义 CSV 列（启用 CoT 时添加 reasoning 相关列）
     fieldnames = [
         "idx", "variant", "query", "raw_response", "ok", "type", 
         "n_plans", "latency_sec", "parsed", "gold_label", "error"
     ]
+    if args.enable_cot:
+        fieldnames.extend([
+            "reasoning_query_analysis",
+            "reasoning_domain_identification", 
+            "reasoning_time_calculation",
+            "reasoning_refuse_check",
+            "reasoning_final_decision"
+        ])
+    
     csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
     csv_writer.writeheader()  # 写入表头
     csv_file.flush()
@@ -184,6 +211,8 @@ def main():
                 n_plans: Optional[int] = None
                 out_type: Optional[str] = None
                 err: Optional[str] = None
+                reasoning_fields: dict = {}
+                
                 if ok and parsed is not None:
                     # parsed 现在是 QueryResult 对象
                     if parsed.refused:
@@ -192,7 +221,17 @@ def main():
                     else:
                         out_type = "plans"
                         n_plans = len(parsed.plans)
-                    norm = normalize_result(parsed)
+                    norm = normalize_result(parsed, include_reasoning=False)
+                    
+                    # 如果启用 CoT 且存在 reasoning，提取各个步骤
+                    if args.enable_cot and parsed.reasoning is not None:
+                        reasoning_fields = {
+                            "reasoning_query_analysis": parsed.reasoning.query_analysis,
+                            "reasoning_domain_identification": parsed.reasoning.domain_identification,
+                            "reasoning_time_calculation": parsed.reasoning.time_calculation,
+                            "reasoning_refuse_check": parsed.reasoning.refuse_check,
+                            "reasoning_final_decision": parsed.reasoning.final_decision
+                        }
                 else:
                     out_type = "parse_error"
             except Exception as e:
@@ -203,6 +242,7 @@ def main():
                 n_plans = None
                 err = str(e)
                 norm = None
+                reasoning_fields = {}  # 异常情况下初始化为空字典
 
             record = {
                 "idx": item.idx,
@@ -219,6 +259,10 @@ def main():
                 "gold_label": gold_label,
                 "error": err,
             }
+            
+            # 如果启用 CoT，添加 reasoning 字段
+            if args.enable_cot:
+                record.update(reasoning_fields)
             
             # 立即写入 CSV
             csv_writer.writerow(record)
