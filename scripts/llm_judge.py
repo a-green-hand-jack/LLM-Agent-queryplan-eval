@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""基于 LLM 的 Prompt 效果判别脚本 - 重构版本
+"""基于 LLM 的成对比较判别脚本 - 重构版本
 
 使用方式:
-    uv run python scripts/llm_judge.py outputs/test/eval_results.csv
-    uv run python scripts/llm_judge.py outputs/test/eval_results.csv --model qwen3-max
-    uv run python scripts/llm_judge.py outputs/test/eval_results.csv --outdir outputs/test/judge_results
+    # 比较两个 CSV 文件
+    uv run python scripts/llm_judge.py outputs/original/eval_results.csv outputs/test/eval_results.csv
+    
+    # 指定输出目录
+    uv run python scripts/llm_judge.py outputs/original/eval_results.csv outputs/test/eval_results.csv --outdir outputs/comparison
+    
+    # 指定判别模型
+    uv run python scripts/llm_judge.py outputs/original/eval_results.csv outputs/test/eval_results.csv --model qwen3-max
 """
 
 import sys
@@ -32,10 +37,14 @@ logger = logging.getLogger(__name__)
 
 def main():
     """主程序入口"""
-    parser = ArgumentParser(description="基于 LLM 的 Prompt 效果判别")
+    parser = ArgumentParser(description="基于 LLM 的成对比较判别")
     parser.add_argument(
-        "csv_path",
-        help="评估结果 CSV 文件路径"
+        "csv_path_a",
+        help="方案 A 的评估结果 CSV 文件路径"
+    )
+    parser.add_argument(
+        "csv_path_b",
+        help="方案 B 的评估结果 CSV 文件路径"
     )
     parser.add_argument(
         "--model",
@@ -56,7 +65,7 @@ def main():
     parser.add_argument(
         "--outdir",
         default=None,
-        help="输出目录（默认为 CSV 文件所在目录）"
+        help="输出目录（默认为方案 A 的目录）"
     )
     
     args = parser.parse_args()
@@ -69,12 +78,16 @@ def main():
         sys.exit(1)
     
     # 检查文件
-    if not Path(args.csv_path).exists():
-        logger.error(f"文件不存在: {args.csv_path}")
+    for csv_path in [args.csv_path_a, args.csv_path_b]:
+        if not Path(csv_path).exists():
+            logger.error(f"文件不存在: {csv_path}")
         sys.exit(1)
     
     # 确定输出目录
-    output_dir = args.outdir if args.outdir else str(Path(args.csv_path).parent)
+    if args.outdir is None:
+        output_dir = str(Path(args.csv_path_a).parent / "comparison")
+    else:
+        output_dir = args.outdir
     
     # 确定 base_url
     if args.base_url is None:
@@ -83,8 +96,9 @@ def main():
             "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
     
-    logger.info("开始 LLM 判别")
-    logger.info(f"评估结果文件: {args.csv_path}")
+    logger.info("开始 LLM 成对比较判别")
+    logger.info(f"方案 A 文件: {args.csv_path_a}")
+    logger.info(f"方案 B 文件: {args.csv_path_b}")
     logger.info(f"判别模型: {args.model}")
     logger.info(f"输出目录: {output_dir}")
     
@@ -104,7 +118,8 @@ def main():
         
         # 初始化判别工具
         judge = PairwiseJudge(
-            eval_results_path=args.csv_path,
+            csv_path_a=args.csv_path_a,
+            csv_path_b=args.csv_path_b,
             llm=llm,
             prompt_manager=prompt_manager,
             output_dir=output_dir
@@ -115,14 +130,14 @@ def main():
         
         # 打印摘要
         print("\n" + "="*60)
-        print("LLM 判别完成")
+        print("LLM 成对比较判别完成")
         print("="*60)
         print(f"总判别数: {analysis['total_judgements']}")
-        print(f"NEW 胜出: {analysis['new_wins']} ({analysis['new_win_rate']*100:.1f}%)")
-        print(f"OLD 胜出: {analysis['old_wins']} ({analysis['old_win_rate']*100:.1f}%)")
+        print(f"方案A 胜出: {analysis['a_wins']} ({analysis['a_win_rate']*100:.1f}%)")
+        print(f"方案B 胜出: {analysis['b_wins']} ({analysis['b_win_rate']*100:.1f}%)")
         print(f"平局: {analysis['ties']} ({analysis['tie_rate']*100:.1f}%)")
         print(f"平均置信度: {analysis['avg_confidence']:.2f}")
-        print(f"综合得分: NEW {analysis['new_overall_score']:.2f} vs OLD {analysis['old_overall_score']:.2f}")
+        print(f"综合得分: 方案A {analysis['a_overall_score']:.2f} vs 方案B {analysis['b_overall_score']:.2f}")
         print("="*60)
         print(f"\n结果已保存到: {output_dir}")
         
