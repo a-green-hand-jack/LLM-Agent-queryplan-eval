@@ -89,7 +89,7 @@ def parser_args():
     parser.add_argument(
         "--outdir",
         type=str,
-        default=str(Path(__file__).resolve().parents[1] / "outputs/full"),
+        default=str(Path(__file__).resolve().parents[1] / "outputs/cot_v6"),
     )
     parser.add_argument(
         "--new-prompt",
@@ -99,7 +99,7 @@ def parser_args():
             / "src"
             / "queryplan_eval"
             / "prompts"
-            / "queryplan_system_prompt_v5.j2"
+            / "queryplan_system_prompt_v6_cot.j2"
         ),
     )
     parser.add_argument(

@@ -34,7 +34,7 @@ from queryplan_eval.renderer import read_raw_prompt
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
