@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ ,mport annotations
 import os
 import time
 import json
@@ -89,7 +89,7 @@ def parser_args():
     parser.add_argument(
         "--outdir",
         type=str,
-        default=str(Path(__file__).resolve().parents[1] / "outputs/tmp"),
+        default=str(Path(__file__).resolve().parents[1] / "outputs/full"),
     )
     parser.add_argument(
         "--new-prompt",
