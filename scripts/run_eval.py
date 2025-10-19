@@ -20,7 +20,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from queryplan_eval.schemas import QueryResult, normalize_result
 from queryplan_eval.renderer import render_system_prompt, read_raw_prompt
-from queryplan_eval.data_utils import load_queries_with_gold_labels
+from queryplan_eval.datasets import QueryPlanDataset, SplitConfig, split_dataset, take_samples
 
 T = TypeVar('T')
 
@@ -89,7 +89,7 @@ def parser_args():
     parser.add_argument(
         "--outdir",
         type=str,
-        default=str(Path(__file__).resolve().parents[1] / "outputs/v5"),
+        default=str(Path(__file__).resolve().parents[1] / "outputs/tmp"),
     )
     parser.add_argument(
         "--new-prompt",
@@ -146,8 +146,13 @@ def main():
     else:
         system_old = read_raw_prompt(args.old_prompt)
 
-    df = load_queries_with_gold_labels(args.data, n=args.n)
-
+    dataset = QueryPlanDataset(args.data)
+    config = SplitConfig(split_type="train_eval_test", train_ratio=0.7, eval_ratio=0.2, test_ratio=0.1)
+    splits = split_dataset(dataset, config)
+    train_set = splits["train"]
+    demo_set = take_samples(train_set, n=args.n)
+    # eval_set = splits["eval"]
+    # test_set = splits["test"]
     # 准备 CSV 写入器
     csv_path = outdir / "eval_results.csv"
     csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
@@ -162,9 +167,9 @@ def main():
     csv_file.flush()
     
     rows = []
-    for i, row in tqdm(df.iterrows(), total=len(df), desc="Evaluating"):
-        q = str(row["query"]).strip()
-        gold_label = str(row["plan"]).strip() if not pd.isna(row["plan"]) else None # type: ignore
+    for item in tqdm(demo_set, total=len(demo_set), desc="Evaluating demo set"):
+        q = str(item.query).strip()
+        gold_label = str(item.plan).strip() if not pd.isna(item.plan) else None # type: ignore
         for variant, system_prompt in [("new", system_new), ("old", system_old)]:
             chat = build_chat(system_prompt, q)
             try:
@@ -200,7 +205,7 @@ def main():
                 norm = None
 
             record = {
-                "idx": i,
+                "idx": item.idx,
                 "variant": variant,
                 "query": q,
                 "raw_response": raw,
