@@ -81,7 +81,8 @@ def main():
     args = parser.parse_args()
     
     # 加载环境变量
-    load_dotenv()
+    env_path = Path(__file__).parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
     api_key = os.environ.get("qwen_key") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
         logger.error("缺少 API 密钥。请在 .env 中设置 qwen_key 或 OPENAI_API_KEY")
