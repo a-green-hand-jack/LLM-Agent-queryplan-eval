@@ -134,3 +134,15 @@ class JudgementResult(BaseModel):
     dimensions: DimensionScores = Field(
         description="各维度的详细评分"
     )
+
+
+class HallucinationResult(BaseModel):
+    """幻觉检测结果
+    
+    模型输出的幻觉片段列表，每个片段必须是 response 中的精确子串。
+    如果没有检测到幻觉，hallucination_list 为空列表。
+    """
+    hallucination_list: List[str] = Field(
+        default_factory=list,
+        description="检测到的幻觉片段列表，每个片段必须是 response 中的精确子串"
+    )
