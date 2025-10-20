@@ -6,11 +6,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from datasets import Dataset, concatenate_datasets
 
 from ..core.base_task import BaseTask
 from ..core.prompt_manager import RAGPromptManager
-from ..datasets import RAGTruthDataset
+from ..datasets import RAGTruthDataset, RAGTruthItem
 from ..metrics.ragtruth_metrics import (
     compute_hallucination_metrics,
     aggregate_metrics_by_task,
@@ -20,6 +19,26 @@ from ..metrics.span_utils import parse_spans_from_text, Span
 from ..schemas import HallucinationResult
 
 logger = logging.getLogger(__name__)
+
+
+class RAGTruthItemList:
+    """RAGTruthItem 列表的 Dataset 风格包装
+    
+    模拟 HuggingFace Dataset 接口，但迭代返回 RAGTruthItem 对象而不是字典。
+    与 QueryPlanDataset 保持一致的使用方式。
+    """
+    
+    def __init__(self, items: List[RAGTruthItem]):
+        self.items = items
+    
+    def __len__(self) -> int:
+        return len(self.items)
+    
+    def __iter__(self):
+        return iter(self.items)
+    
+    def __getitem__(self, idx: int) -> RAGTruthItem:
+        return self.items[idx]
 
 
 class RAGTruthTask(BaseTask):
@@ -124,22 +143,24 @@ class RAGTruthTask(BaseTask):
             f"任务初始化完成，数据集大小: {len(self.dataset)}, 任务类型: {task_types}"
         )
     
-    def load_dataset(self, path: str = "") -> Dataset:
+    def load_dataset(self, path: str = "") -> Any:
         """加载灵活的 RAGTruth 数据集
         
         根据配置的 task_types、split 和采样参数加载数据。
+        与 QueryPlanTask 保持一致，返回可以迭代出对象的数据集。
         
         Args:
             path: 未使用（兼容 BaseTask 接口）
         
         Returns:
-            合并后的 HuggingFace Dataset
+            RAGTruthItemList，可以迭代出 RAGTruthItem 对象
         """
         logger.info(
             f"加载数据集: task_types={self.task_types}, split={self.split}"
         )
         
-        datasets_to_merge = []
+        # 收集所有 RAGTruthItem 对象
+        all_items = []
         
         # 为每个任务类型加载数据
         for task_type in self.task_types:
@@ -151,109 +172,50 @@ class RAGTruthTask(BaseTask):
                 cache_dir=self.cache_dir,
             )
             
-            # 转换为 HuggingFace Dataset
-            hf_dataset = self._rag_dataset_to_hf(rag_dataset)
-            datasets_to_merge.append(hf_dataset)
+            # 直接收集 RAGTruthItem 对象，不转换为字典
+            for item in rag_dataset:
+                all_items.append(item)
         
-        # 合并多个任务的数据
-        if len(datasets_to_merge) == 1:
-            merged_dataset = datasets_to_merge[0]
-        else:
-            merged_dataset = concatenate_datasets(datasets_to_merge)
-        
-        logger.info(f"合并后的数据集大小: {len(merged_dataset)}")
+        logger.info(f"合并后的数据集大小: {len(all_items)}")
         
         # 应用采样
+        original_size = len(all_items)
         if self.sample_n is not None:
-            merged_dataset = self._apply_sampling_by_count(merged_dataset)
+            if self.sample_n < len(all_items):
+                all_items = all_items[:self.sample_n]
+                logger.info(f"按数量采样: {len(all_items)}/{original_size}")
+            else:
+                logger.info(f"样本数量不足采样: {len(all_items)}")
         elif self.sample_ratio is not None:
-            merged_dataset = self._apply_sampling_by_ratio(merged_dataset)
+            n = int(len(all_items) * self.sample_ratio)
+            all_items = all_items[:n]
+            logger.info(f"按比例采样: {n}/{original_size} ({self.sample_ratio:.1%})")
         
-        logger.info(f"采样后的数据集大小: {len(merged_dataset)}")
+        logger.info(f"最终数据集大小: {len(all_items)}")
         
-        return merged_dataset
-    
-    def _rag_dataset_to_hf(self, rag_dataset: RAGTruthDataset) -> Dataset:
-        """将 RAGTruthDataset 转换为 HuggingFace Dataset
-        
-        Args:
-            rag_dataset: RAGTruthDataset 实例
-        
-        Returns:
-            HuggingFace Dataset
-        """
-        data = []
-        for item in rag_dataset:
-            data.append({
-                "idx": item.idx,
-                "task_type": item.task_type,
-                "context": item.context,
-                "output": item.output,
-                "hallucination_labels": item.hallucination_labels,
-                "query": item.query,
-            })
-        
-        return Dataset.from_dict({
-            "idx": [d["idx"] for d in data],
-            "task_type": [d["task_type"] for d in data],
-            "context": [d["context"] for d in data],
-            "output": [d["output"] for d in data],
-            "hallucination_labels": [d["hallucination_labels"] for d in data],
-            "query": [d["query"] for d in data],
-        })
-    
-    def _apply_sampling_by_count(self, dataset: Dataset) -> Dataset:
-        """按数量采样
-        
-        Args:
-            dataset: 输入数据集
-        
-        Returns:
-            采样后的数据集
-        """
-        if self.sample_n is None:
-            return dataset
-        n = min(self.sample_n, len(dataset))
-        indices = list(range(n))
-        logger.info(f"按数量采样: {n}/{len(dataset)}")
-        return dataset.select(indices)
-    
-    def _apply_sampling_by_ratio(self, dataset: Dataset) -> Dataset:
-        """按比例采样
-        
-        Args:
-            dataset: 输入数据集
-        
-        Returns:
-            采样后的数据集
-        """
-        if self.sample_ratio is None:
-            return dataset
-        n = int(len(dataset) * self.sample_ratio)
-        indices = list(range(n))
-        logger.info(f"按比例采样: {n}/{len(dataset)} ({self.sample_ratio:.1%})")
-        return dataset.select(indices)
+        # 返回包装类，表现得像 Dataset 但迭代返回 RAGTruthItem
+        return RAGTruthItemList(all_items)
     
     def build_chat(self, item: Any) -> list[dict[str, str]]:
         """构建 chat 消息
         
         Args:
-            item: HuggingFace Dataset 中的样本
+            item: RAGTruthItem 对象
         
         Returns:
             chat 消息列表
         """
-        task_type = item["task_type"]
+        task_type = item.task_type
         
         # 准备 prompt 参数
         prompt_kwargs = {
-            "reference": item["context"],
-            "response": item["output"],
+            "reference": item.context,
+            "response": item.output,
         }
         
         # QA 任务需要额外的 question 字段
-        if task_type == "QA" and item.get("query"):
-            prompt_kwargs["question"] = item["query"]
+        if task_type == "QA" and item.query:
+            prompt_kwargs["question"] = item.query
         
         # 获取 prompt
         system_prompt = self.prompt_manager.get_prompt(
@@ -266,8 +228,8 @@ class RAGTruthTask(BaseTask):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps({
                 "task_type": task_type,
-                "reference": item["context"],
-                "response": item["output"],
+                "reference": item.context,
+                "response": item.output,
             }, ensure_ascii=False)}
         ]
     
@@ -277,7 +239,7 @@ class RAGTruthTask(BaseTask):
     
     def process_single_result(
         self,
-        item: Any,
+        item: RAGTruthItem,
         parsed: Optional[HallucinationResult],
         raw: Optional[str],
         latency: float
@@ -285,7 +247,7 @@ class RAGTruthTask(BaseTask):
         """处理单个样本的结果
         
         Args:
-            item: 原始样本
+            item: RAGTruthItem 对象
             parsed: 解析后的 HallucinationResult
             raw: 原始输出
             latency: 耗时
@@ -293,8 +255,8 @@ class RAGTruthTask(BaseTask):
         Returns:
             处理后的结果记录
         """
-        task_type = item["task_type"]
-        response = item["output"]
+        task_type = item.task_type
+        response = item.output
         
         ok = parsed is not None
         predicted_spans: List[Span] = []
@@ -316,13 +278,13 @@ class RAGTruthTask(BaseTask):
         
         # 解析真实的幻觉标注
         try:
-            hallucination_labels = item["hallucination_labels"]
-            if hallucination_labels and hallucination_labels != "[]":
-                parsed_labels = json.loads(hallucination_labels)
+            hallucination_labels_gt = item.hallucination_labels
+            if hallucination_labels_gt  and hallucination_labels_gt != "[]":
+                parsed_labels = json.loads(hallucination_labels_gt)
                 ground_truth_spans = parse_spans_from_text(parsed_labels, response)
         except Exception as e:
             logger.warning(
-                f"解析真实 labels 失败 (idx={item['idx']}): {e}"
+                f"解析真实 spans 失败 (idx={item.idx}): {e}"
             )
         
         # 计算指标
@@ -333,11 +295,11 @@ class RAGTruthTask(BaseTask):
             )
         
         record = {
-            "idx": item["idx"],
+            "idx": item.idx,
             "task_type": task_type,
-            "context_length": len(item["context"]),
+            "context_length": len(item.context),
             "output_length": len(response),
-            "hallucination_labels": item["hallucination_labels"],
+            "hallucination_labels": item.hallucination_labels,
             "predicted_hallucinations": json.dumps(
                 parsed.hallucination_list if parsed else [], ensure_ascii=False
             ),
