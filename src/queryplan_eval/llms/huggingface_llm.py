@@ -5,9 +5,10 @@ import json
 import logging
 from typing import Optional, Tuple, Type, TypeVar
 
+import torch
 import outlines
+from outlines.models import transformers as transformers_model
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer # type: ignore
 
 from ..core.base_llm import BaseLLM
 
@@ -21,23 +22,31 @@ class HuggingFaceLLM(BaseLLM):
     通过 Outlines 提供结构化输出，与 OpenAI API 使用相同的逻辑
     """
     
-    def __init__(self, model_path: str, device: str = "auto"):
+    def __init__(self, model_name: str, device: str = "cuda"):
         """初始化本地模型
         
         Args:
-            model_path: 模型路径（本地路径或 HuggingFace Hub ID）
-            device: 设备（"cuda", "cpu", "auto"）
+            model_name: 模型名称（HuggingFace Hub ID，如 "Qwen/Qwen2.5-7B-Instruct"）
+            device: 设备（"cuda", "cpu"）
         """
-        self.model_path = model_path
-        self.device = device
-
-        model = AutoModelForCausalLM.from_pretrained(model_path)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model_name = model_name
+        
+        # 确定实际使用的设备
+        if device == "cuda" and not torch.cuda.is_available():
+            logger.warning("CUDA 不可用，将使用 CPU")
+            self.device = "cpu"
+        else:
+            self.device = device
+        
+        logger.info(f"正在加载 HuggingFace 模型: {model_name} (device: {self.device})")
         
         try:
-            # 使用 outlines 加载本地模型
-            self.model = outlines.from_transformers(model, tokenizer, device_dtype=device)
-            logger.info(f"已初始化 HuggingFace 本地模型: {model_path}")
+            # 使用 outlines 的 transformers 模型包装器
+            self.model = transformers_model(  # type: ignore
+                model_name,
+                device=self.device
+            )
+            logger.info(f"✓ 已初始化 HuggingFace 本地模型: {model_name}")
         except Exception as e:
             logger.error(f"初始化本地模型失败: {e}")
             raise
@@ -49,7 +58,7 @@ class HuggingFaceLLM(BaseLLM):
         temperature: float = 0.0,
         **kwargs
     ) -> Tuple[Optional[T], Optional[str], float]:
-        """使用 Outlines 生成结构化输出（与 OpenAI 逻辑一致）
+        """使用 Outlines 生成结构化输出
         
         Args:
             chat: 聊天消息列表
@@ -62,7 +71,7 @@ class HuggingFaceLLM(BaseLLM):
         """
         t0 = time.time()
         try:
-            # 调用 outlines 模型（本地模型也使用相同的接口）
+            # 调用 outlines 模型生成结构化输出
             result = self.model(
                 outlines.inputs.Chat(chat),
                 output_schema,
