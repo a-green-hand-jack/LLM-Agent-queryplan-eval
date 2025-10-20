@@ -33,7 +33,8 @@ class RAGTruthItem:
         task_type: 任务类型 (Summary, QA, Data2txt)
         context: 上下文/参考文本
         output: 模型生成的输出
-        hallucination_labels: 幻觉标注（JSON字符串）
+        hallucination_labels: 幻觉标注（JSON字符串，原始值）
+        hallucination_spans: 幻觉片段位置列表，由 hallucination_labels 转换而来
         query: 问题/任务描述（可选）
     """
     idx: int
@@ -41,6 +42,7 @@ class RAGTruthItem:
     context: str
     output: str
     hallucination_labels: str
+    hallucination_spans: List[tuple[int, int]]  # 转换后的结构化数据
     query: Optional[str] = None
 
 
@@ -146,12 +148,15 @@ class RAGTruthDataset:
             raise IndexError(f"索引 {idx} 超出范围 [0, {len(self) - 1}]")
         
         row = self._dataset[idx]
+        hallucination_labels_str = str(row["hallucination_labels"])
+        
         return RAGTruthItem(
             idx=idx,
             task_type=str(row["task_type"]),
             context=str(row["context"]),
             output=str(row["output"]),
-            hallucination_labels=str(row["hallucination_labels"]),
+            hallucination_labels=hallucination_labels_str,
+            hallucination_spans=_parse_hallucination_labels(hallucination_labels_str),
             query=str(row.get("query")) if row.get("query") else None,
         )
     
@@ -187,6 +192,37 @@ class RAGTruthDataset:
 # ============================================================================
 
 
+def _parse_hallucination_labels(labels: str) -> List[tuple[int, int]]:
+    """
+    解析JSON格式的幻觉标注，转换为元组列表
+    
+    RAGTruth中的hallucination_labels格式：
+    '[{"start": 10, "end": 20}, {"start": 30, "end": 40}]'
+    
+    Args:
+        labels: JSON字符串
+        
+    Returns:
+        (start, end)元组的列表
+    """
+    if not labels or labels == "[]":
+        return []
+    
+    try:
+        parsed = json.loads(labels)
+        spans = []
+        for span_dict in parsed:
+            if isinstance(span_dict, dict):
+                start = int(span_dict.get("start", 0))
+                end = int(span_dict.get("end", 0))
+                if start < end:
+                    spans.append((start, end))
+        return spans
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        logger.warning(f"解析hallucination_labels失败: {e}")
+        return []
+
+
 def split_train_val(
     dataset: RAGTruthDataset,
     val_ratio: float = 0.2,
@@ -195,12 +231,12 @@ def split_train_val(
     force_resplit: bool = False,
 ) -> tuple[RAGTruthDataset, RAGTruthDataset]:
     """
-    将RAGTruthDataset的train部分划分为训练集和验证集
+    将RAGTruthDataset的train部分划分为训练集和验证集，支持分层抽样
     
     设计要点：
     1. 使用固定随机种子保证可重复性
-    2. 将划分索引缓存到文件，确保跨运行的一致性
-    3. 返回两个RAGTruthDataset实例
+    2. 使用分层抽样保持幻觉样本的类别分布
+    3. 将划分索引缓存到文件，确保跨运行的一致性
     
     Args:
         dataset: RAGTruthDataset实例
@@ -214,15 +250,23 @@ def split_train_val(
         
     Raises:
         ValueError: 如果数据集split不是train
+        ImportError: 如果缺少sklearn依赖
     """
     if dataset.split != "train":
         raise ValueError(
             f"只能对split='train'的数据集进行划分，当前split='{dataset.split}'"
         )
     
+    try:
+        from sklearn.model_selection import train_test_split
+    except ImportError:
+        raise ImportError(
+            "需要 sklearn 来进行分层抽样。请运行: uv pip install scikit-learn"
+        )
+    
     logger.info(
         f"开始划分数据集 "
-        f"(task_type={dataset.task_type}, val_ratio={val_ratio})"
+        f"(task_type={dataset.task_type}, val_ratio={val_ratio}, 使用分层抽样)"
     )
     
     # 尝试从缓存加载
@@ -248,23 +292,26 @@ def split_train_val(
             )
             return train_split, val_split
     
-    # 执行新的划分
-    logger.info("执行新的数据划分...")
+    # 执行新的划分：构建分层标签（是否包含幻觉）
+    logger.info("执行新的数据划分（使用分层抽样）...")
     
-    # 使用HuggingFace Dataset的train_test_split方法
-    splits = dataset._dataset.train_test_split(
+    # 构建分层标签：基于 hallucination_spans 是否非空
+    stratify_labels = []
+    for item in dataset:
+        # 1 表示有幻觉，0 表示无幻觉
+        stratify_labels.append(1 if item.hallucination_spans else 0)
+    
+    # 使用sklearn进行分层划分
+    indices = list(range(len(dataset)))
+    train_indices, val_indices = train_test_split(
+        indices,
         test_size=val_ratio,
-        seed=random_seed,
-        shuffle=True,
+        random_state=random_seed,
+        stratify=stratify_labels,
     )
-    
-    train_hf_dataset = splits["train"]
-    val_hf_dataset = splits["test"]
     
     # 保存索引到缓存
     if cache_dir is not None:
-        train_indices = list(range(len(train_hf_dataset)))
-        val_indices = list(range(len(train_hf_dataset), len(train_hf_dataset) + len(val_hf_dataset)))
         _save_split_indices_to_cache(
             cache_dir,
             dataset.task_type,
@@ -277,11 +324,14 @@ def split_train_val(
     
     # 创建RAGTruthDataset实例
     train_split = _create_rag_dataset_from_hf(
-        train_hf_dataset, dataset.task_type, "train"
+        dataset._dataset.select(train_indices), dataset.task_type, "train"
     )
     val_split = _create_rag_dataset_from_hf(
-        val_hf_dataset, dataset.task_type, "val"
+        dataset._dataset.select(val_indices), dataset.task_type, "val"
     )
+    
+    # 验证分层效果
+    _verify_stratification(train_split, val_split)
     
     logger.info(f"划分完成: train={len(train_split)}, val={len(val_split)}")
     return train_split, val_split
@@ -420,6 +470,28 @@ def _create_dataset_from_indices(hf_dataset, indices: List[int], task_type: str,
     return _create_rag_dataset_from_hf(selected_hf_dataset, task_type, split)
 
 
+def _verify_stratification(
+    train_split: RAGTruthDataset,
+    val_split: RAGTruthDataset
+) -> None:
+    """
+    验证分层抽样效果
+    
+    检查训练集和验证集中有幻觉的样本比例是否接近
+    """
+    def hallucination_ratio(dataset: RAGTruthDataset) -> float:
+        count = sum(1 for item in dataset if item.hallucination_spans)
+        return count / len(dataset) if dataset else 0.0
+    
+    train_ratio = hallucination_ratio(train_split)
+    val_ratio = hallucination_ratio(val_split)
+    
+    logger.info("分层验证:")
+    logger.info(f"  训练集幻觉比例: {train_ratio:.2%}")
+    logger.info(f"  验证集幻觉比例: {val_ratio:.2%}")
+    logger.info(f"  差异: {abs(train_ratio - val_ratio):.2%}")
+
+
 # ============================================================================
 # 辅助函数
 # ============================================================================
@@ -437,17 +509,11 @@ def compute_sample_weights(dataset: RAGTruthDataset) -> List[float]:
     Returns:
         样本权重列表，长度与dataset大小相同
     """
-    # 统计包含幻觉的样本
+    # 统计包含幻觉的样本（使用已转换的 hallucination_spans）
     hallucination_count = 0
     for item in dataset:
-        labels = item.hallucination_labels
-        if labels and labels != "[]":
-            try:
-                parsed = json.loads(labels)
-                if parsed:
-                    hallucination_count += 1
-            except json.JSONDecodeError:
-                continue
+        if item.hallucination_spans:  # 直接检查是否非空
+            hallucination_count += 1
     
     no_hallucination_count = len(dataset) - hallucination_count
     
@@ -463,18 +529,7 @@ def compute_sample_weights(dataset: RAGTruthDataset) -> List[float]:
     # 为每个样本分配权重
     weights = []
     for item in dataset:
-        labels = item.hallucination_labels
-        has_hallucination = False
-        
-        if labels and labels != "[]":
-            try:
-                parsed = json.loads(labels)
-                if parsed:
-                    has_hallucination = True
-            except json.JSONDecodeError:
-                pass
-        
-        if has_hallucination:
+        if item.hallucination_spans:
             weights.append(hallucination_weight)
         else:
             weights.append(no_hallucination_weight)
@@ -505,16 +560,10 @@ def get_dataset_statistics(dataset: RAGTruthDataset) -> Dict[str, Any]:
     total_output_len = 0
     
     for item in dataset:
-        # 统计有幻觉的样本
-        labels = item.hallucination_labels
-        if labels and labels != "[]":
-            try:
-                parsed = json.loads(labels)
-                if parsed:
-                    hallucination_count += 1
-                    total_spans += len(parsed)
-            except json.JSONDecodeError:
-                pass
+        # 使用已转换的 hallucination_spans 判断
+        if item.hallucination_spans:
+            hallucination_count += 1
+            total_spans += len(item.hallucination_spans)
         
         # 统计文本长度
         total_context_len += len(item.context)

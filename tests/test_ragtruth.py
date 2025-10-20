@@ -62,6 +62,7 @@ class TestRAGTruthItem:
             context="sample context",
             output="sample output",
             hallucination_labels='[{"start": 0, "end": 5}]',
+            hallucination_spans=[(0, 5)],
             query="sample query",
         )
 
@@ -70,6 +71,7 @@ class TestRAGTruthItem:
         assert item.context == "sample context"
         assert item.output == "sample output"
         assert item.query == "sample query"
+        assert item.hallucination_spans == [(0, 5)]
 
     def test_ragtruth_item_without_query(self):
         """测试 RAGTruthItem 创建时 query 为 None"""
@@ -79,10 +81,12 @@ class TestRAGTruthItem:
             context="qa context",
             output="qa output",
             hallucination_labels="[]",
+            hallucination_spans=[],
         )
 
         assert item.query is None
         assert item.task_type == "QA"
+        assert item.hallucination_spans == []
 
     def test_ragtruth_item_fields(self):
         """测试 RAGTruthItem 包含所有必需字段"""
@@ -92,6 +96,7 @@ class TestRAGTruthItem:
             context="data to text",
             output="generated text",
             hallucination_labels="[]",
+            hallucination_spans=[],
         )
 
         assert hasattr(item, "idx")
@@ -99,6 +104,7 @@ class TestRAGTruthItem:
         assert hasattr(item, "context")
         assert hasattr(item, "output")
         assert hasattr(item, "hallucination_labels")
+        assert hasattr(item, "hallucination_spans")
         assert hasattr(item, "query")
 
 
@@ -153,13 +159,20 @@ class TestRAGTruthDataset:
         assert sample_ragtruth_dataset.split == "train"
 
     def test_dataset_fields_preserved(self, sample_ragtruth_dataset):
-        """测试原始字段名被保留"""
+        """测试原始字段名被保留，并且转换后的字段被添加"""
         item = sample_ragtruth_dataset[0]
 
         # 验证使用的是原始字段名，不是映射的字段名
         assert hasattr(item, "context")  # 不是 input_text
         assert hasattr(item, "output")   # 不是 response
-        assert hasattr(item, "hallucination_labels")  # 不是 hallucination_spans
+        assert hasattr(item, "hallucination_labels")  # 原始值
+        assert hasattr(item, "hallucination_spans")  # 转换后的值
+        
+        # 验证转换后的字段是结构化的元组列表
+        assert isinstance(item.hallucination_spans, list)
+        for span in item.hallucination_spans:
+            assert isinstance(span, tuple)
+            assert len(span) == 2
 
 
 class TestSplitTrainVal:
@@ -441,13 +454,59 @@ class TestRAGTruthDatasetIntegration:
             assert hasattr(item, "context")
             assert hasattr(item, "output")
             assert hasattr(item, "hallucination_labels")
+            assert hasattr(item, "hallucination_spans")
 
             # 这些映射字段不应该存在
             assert not hasattr(item, "input_text")
             assert not hasattr(item, "response")
-            assert not hasattr(item, "hallucination_spans")
 
             # 验证字段类型
             assert isinstance(item.context, str)
             assert isinstance(item.output, str)
             assert isinstance(item.hallucination_labels, str)
+            assert isinstance(item.hallucination_spans, list)
+
+    def test_hallucination_spans_transformation(self, sample_ragtruth_dataset):
+        """测试 hallucination_spans 的正确转换"""
+        for item in sample_ragtruth_dataset:
+            # 验证 hallucination_spans 是元组列表
+            assert isinstance(item.hallucination_spans, list)
+            
+            for span in item.hallucination_spans:
+                assert isinstance(span, tuple)
+                assert len(span) == 2
+                start, end = span
+                assert isinstance(start, int)
+                assert isinstance(end, int)
+                assert start < end
+    
+    def test_stratified_split_effect(self, sample_ragtruth_dataset):
+        """测试分层抽样的效果"""
+        train_split, val_split = split_train_val(
+            sample_ragtruth_dataset, val_ratio=0.2, random_seed=42
+        )
+
+        # 计算原始的幻觉比例
+        original_hallucination_count = sum(
+            1 for item in sample_ragtruth_dataset if item.hallucination_spans
+        )
+        original_ratio = original_hallucination_count / len(sample_ragtruth_dataset)
+
+        # 计算分割后的幻觉比例
+        train_hallucination_count = sum(
+            1 for item in train_split if item.hallucination_spans
+        )
+        train_ratio = train_hallucination_count / len(train_split)
+
+        val_hallucination_count = sum(
+            1 for item in val_split if item.hallucination_spans
+        )
+        val_ratio = val_hallucination_count / len(val_split)
+
+        # 验证分层效果：分割后的比例应该接近原始比例（允许 ±5% 的误差）
+        assert abs(train_ratio - original_ratio) < 0.05, (
+            f"训练集幻觉比例 {train_ratio:.2%} 与原始 {original_ratio:.2%} 差异过大"
+        )
+        assert abs(val_ratio - original_ratio) < 0.05, (
+            f"验证集幻觉比例 {val_ratio:.2%} 与原始 {original_ratio:.2%} 差异过大"
+        )
