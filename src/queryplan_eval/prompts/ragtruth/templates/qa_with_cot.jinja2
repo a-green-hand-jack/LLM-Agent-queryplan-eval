@@ -1,33 +1,204 @@
-Below is a question:
+# Question-Answer Hallucination Detection Task with Chain-of-Thought
+
+You are a hallucination detection expert specializing in question-answer scenarios. Your task is to identify hallucinated content in an answer by comparing it with the provided reference passages and question context.
+
+**Important: You must use Chain-of-Thought (step-by-step reasoning) to analyze the task before providing your final answer.**
+
+## Input Format
+**Question:**
 {{ question }}
 
-Below are the related passages:
+**Reference Passages:**
 {{ reference }}
 
-Below is an answer:
+**Generated Answer:**
 {{ response }}
 
-Your task is to determine whether the answer contains hallucinations.
+## Output Format Requirements **[CRITICAL]**
 
-First, provide reasoning with the following format:
-## Step 1: <your first reasoning step>
-## Step 2: <your next reasoning step>
-...(add as many steps as needed)
+**You must strictly follow this JSON format without deviation:**
 
-Then, compile the labeled hallucinated spans into a JSON dict, with a key "hallucination_list" and its value is a list of hallucinated spans. 
+### Standard Case (With or Without Hallucinations)
+Output a JSON object with `reasoning` and `hallucination_list` fields:
+```json
+{
+  "reasoning": {
+    "question_analysis": "Step 1: Analyze the question and identify what information is being requested",
+    "answer_analysis": "Step 2: Break down the answer content and identify all factual claims",
+    "reference_verification": "Step 3: Verify each answer claim against the reference passages systematically",
+    "hallucination_identification": "Step 4: Identify specific content that contradicts or lacks support from passages",
+    "final_assessment": "Step 5: Provide overall evaluation of answer faithfulness to reference material"
+  },
+  "hallucination_list": ["exact span 1", "exact span 2", ...] 
+}
+```
 
-**CRITICAL REQUIREMENTS**:
-1. Each span MUST be a continuous substring copied EXACTLY character-by-character from the answer above (the "{{ response }}" field). Think of it as copying a fragment of text with Ctrl+C from the original answer.
-2. DO NOT modify, paraphrase, summarize, or correct any text. Copy the original text verbatim, preserving all spelling, grammar, punctuation, and spacing exactly as it appears.
-3. You CANNOT mark the entire answer as hallucination. Even if the answer has issues, you must identify only the specific problematic spans within it.
-4. Each span should be a meaningful fragment, not the whole answer.
+### No Hallucinations Case
+```json
+{
+  "reasoning": {
+    "question_analysis": "Analysis of what the question asks for...",
+    "answer_analysis": "Breakdown of answer content and claims...",
+    "reference_verification": "Verification that all claims are supported by passages...",
+    "hallucination_identification": "No unsupported or contradictory content found",
+    "final_assessment": "Answer is faithful to reference passages and addresses the question appropriately"
+  },
+  "hallucination_list": []
+}
+```
 
-Example: If the answer is "The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days", valid outputs could be:
-- {"hallucination_list": ["pneumonia", "10 days"]} ✓ (these are exact substrings)
-- {"hallucination_list": ["The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days"]} ✗ (cannot mark the entire answer)
-- {"hallucination_list": ["lung infection", "two weeks"]} ✗ (these are NOT in the original text)
+### Output Constraints
+- **Strictly prohibit explanatory text, code block markers, or extra symbols**
+- **Strictly prohibit any other format**
+- **Reasoning object must contain all 5 fields, even if some steps are not applicable**
+- Each span in hallucination_list must be a string (with quotes)
+- Empty list must be `[]` (without quotes)
 
-If there are potential hallucinations, output: {"hallucination_list": ["exact span 1", "exact span 2", ...]}
-If there are no hallucinations, output: {"hallucination_list": []}
+=========================
+## Reasoning Steps Explanation
+
+### Step 1: question_analysis
+Analyze the question to understand:
+- **Information type requested**: factual data, explanation, comparison, evaluation, etc.
+- **Scope and specificity**: broad topic vs. specific details, temporal constraints, entity focus
+- **Expected answer format**: quantitative data, descriptive explanation, yes/no, list, etc.
+- **Context requirements**: what background information is needed for a complete answer
+
+**Example**: "Question asks for specific diagnosis and treatment details for a patient, requiring factual medical information with precision."
+
+### Step 2: answer_analysis
+Break down the answer systematically:
+- **Factual claims**: specific statements that can be verified (names, numbers, dates, procedures)
+- **Descriptive content**: qualitative assessments, explanations, relationships
+- **Attribution patterns**: how information is presented (definitive vs. uncertain language)
+- **Answer completeness**: whether the response adequately addresses the question
+
+**Example**: "Answer makes definitive claims about pneumonia diagnosis and 10-day antibiotic treatment, uses confident language without hedging."
+
+### Step 3: reference_verification
+Systematically check answer claims against reference passages:
+- **Direct support**: Claims explicitly stated in passages
+- **Inferential support**: Claims reasonably derivable from passage information
+- **Partial support**: Claims partially supported but with gaps or ambiguities
+- **No support**: Claims without any basis in the reference material
+- **Contradictory evidence**: Claims that conflict with passage information
+
+**Example**: "Passages mention respiratory infection and antibiotic prescription, but specify bronchitis (not pneumonia) and do not mention treatment duration."
+
+### Step 4: hallucination_identification
+Categorize and identify specific hallucinations:
+- **Factual contradictions**: Claims that directly oppose passage information
+- **Unsupported specifics**: Precise details not found in passages (exact numbers, names, timeframes)
+- **Fabricated relationships**: Causal or logical connections not supported by passages
+- **Attribution errors**: Misassigned sources, quotes, or authorities
+- **Context distortions**: Information taken out of context or misrepresented
+
+**Example**: "Identified hallucinations: 'pneumonia' contradicts passage's 'bronchitis'; '10 days' is unsupported specific detail not mentioned in passages."
+
+### Step 5: final_assessment
+Provide comprehensive evaluation:
+- **Overall faithfulness**: How well the answer adheres to reference material
+- **Severity assessment**: Impact of identified hallucinations on answer quality
+- **Question alignment**: Whether the answer appropriately addresses the original question
+- **Confidence level**: How certain you are about the hallucination identification
+
+=========================
+## Hallucination Detection Rules
+
+### What Constitutes Hallucination
+Content in the answer that:
+- **Contradicts information explicitly stated in the reference passages**
+- **Makes factual claims not supported by any information in the reference passages**
+- **Contains incorrect numbers, dates, names, statistics, or technical details**
+- **Fabricates quotes, citations, or specific claims not found in the passages**
+- **Misrepresents relationships, causality, or context from the reference material**
+
+### What Does NOT Constitute Hallucination
+- **Reasonable inferences drawn from the reference passages**
+- **Connecting information from multiple passages in a logical way**
+- **Paraphrasing or rephrasing reference content while preserving meaning**
+- **Natural language variations that don't change factual content**
+- **General knowledge that's consistent with the reference material**
+- **Appropriate hedging language (e.g., "may", "likely", "appears to")**
+
+### Special Considerations for Q&A
+- **Question relevance**: The answer should address the question using information from passages
+- **Attribution accuracy**: Claims should be traceable to specific reference passages
+- **Context preservation**: Information should maintain its original context and meaning
+- **Completeness vs. accuracy**: Focus on factual accuracy rather than completeness
+
+=========================
+## Span Extraction Requirements **[CRITICAL]**
+
+### Exact Substring Rule
+- Each hallucinated span MUST be copied EXACTLY character-by-character from the answer
+- Think of it as using Ctrl+C to copy a text fragment from the original answer
+- **DO NOT modify, paraphrase, summarize, or correct any text**
+- Preserve all spelling, grammar, punctuation, and spacing exactly as it appears
+
+### Granularity Rules
+- **You CANNOT mark the entire answer as hallucination**
+- Even if the answer has multiple issues, identify only specific problematic spans
+- Each span should be a meaningful fragment (phrase, sentence, or clause level)
+- **Avoid overly granular word-by-word marking unless necessary**
+
+=========================
+## Examples
+
+**Example 1: Medical Diagnosis Contradiction**
+- Question: "What was the patient's diagnosis?"
+- Reference: "Patient was diagnosed with bronchitis and given antibiotics"
+- Answer: "The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "question_analysis": "Question requests specific medical diagnosis information",
+    "answer_analysis": "Answer provides definitive diagnosis (pneumonia) and specific treatment duration (10 days)",
+    "reference_verification": "Reference supports bronchitis diagnosis and antibiotic treatment, but contradicts pneumonia and doesn't specify duration",
+    "hallucination_identification": "Two hallucinations: wrong diagnosis (pneumonia vs bronchitis) and unsupported treatment duration (10 days)",
+    "final_assessment": "Answer contains significant factual errors contradicting reference material"
+  },
+  "hallucination_list": ["pneumonia", "10 days"]
+}
+```
+
+**Example 2: No Hallucinations**  
+- Question: "What did the study conclude?"
+- Reference: "The study concluded that exercise improves mental health outcomes"
+- Answer: "The study concluded that regular exercise can improve mental health outcomes"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "question_analysis": "Question asks for study conclusions about exercise and mental health",
+    "answer_analysis": "Answer provides conclusion about exercise benefits with slight elaboration (regular exercise)",
+    "reference_verification": "Reference directly supports the conclusion, 'regular' is reasonable inference from context",
+    "hallucination_identification": "No contradictions or unsupported claims identified",
+    "final_assessment": "Answer faithfully represents reference conclusion with appropriate paraphrasing"
+  },
+  "hallucination_list": []
+}
+```
+
+**Example 3: Fabricated Specifics**
+- Question: "Who conducted the research?"
+- Reference: "Research was conducted by a team of scientists"
+- Answer: "Dr. Smith, lead researcher at Harvard University, conducted this groundbreaking research published in Nature journal"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "question_analysis": "Question asks for identification of research personnel",
+    "answer_analysis": "Answer provides specific researcher name, institution, publication details, and qualitative assessment",
+    "reference_verification": "Reference only mentions 'team of scientists' without specific names, institutions, or publications",
+    "hallucination_identification": "Multiple fabricated details: specific researcher name, institution, publication venue, and 'groundbreaking' assessment",
+    "final_assessment": "Answer adds substantial unverifiable details not supported by reference material"
+  },
+  "hallucination_list": ["Dr. Smith, lead researcher at Harvard University", "groundbreaking", "published in Nature journal"]
+}
+```
+
+=========================
 
 **After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**

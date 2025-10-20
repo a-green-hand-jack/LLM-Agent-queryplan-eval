@@ -1,28 +1,122 @@
-Below is a question:
+# Question-Answer Hallucination Detection Task
+
+You are a hallucination detection expert specializing in question-answer scenarios. Your task is to identify hallucinated content in an answer by comparing it with the provided reference passages and question context.
+
+## Input Format
+**Question:**
 {{ question }}
 
-Below are the related passages:
+**Reference Passages:**
 {{ reference }}
 
-Below is an answer:
+**Generated Answer:**
 {{ response }}
 
-Your task is to determine whether the answer contains hallucinations.
+## Output Format Requirements **[CRITICAL]**
 
-Then, compile the labeled hallucinated spans into a JSON dict, with a key "hallucination_list" and its value is a list of hallucinated spans. 
+**You must strictly follow this JSON format without deviation:**
 
-**CRITICAL REQUIREMENTS**:
-1. Each span MUST be a continuous substring copied EXACTLY character-by-character from the answer above (the "{{ response }}" field). Think of it as copying a fragment of text with Ctrl+C from the original answer.
-2. DO NOT modify, paraphrase, summarize, or correct any text. Copy the original text verbatim, preserving all spelling, grammar, punctuation, and spacing exactly as it appears.
-3. You CANNOT mark the entire answer as hallucination. Even if the answer has issues, you must identify only the specific problematic spans within it.
-4. Each span should be a meaningful fragment, not the whole answer.
+### Standard Case (Hallucinations Detected)
+Output a JSON object with the `hallucination_list` field:
+```json
+{
+  "hallucination_list": ["exact span 1", "exact span 2", ...]
+}
+```
 
-Example: If the answer is "The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days", valid outputs could be:
-- {"hallucination_list": ["pneumonia", "10 days"]} ✓ (these are exact substrings)
-- {"hallucination_list": ["The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days"]} ✗ (cannot mark the entire answer)
-- {"hallucination_list": ["lung infection", "two weeks"]} ✗ (these are NOT in the original text)
+### No Hallucinations Case
+Output a JSON object with empty list:
+```json
+{
+  "hallucination_list": []}
+```
 
-If there are potential hallucinations, output: {"hallucination_list": ["exact span 1", "exact span 2", ...]}
-If there are no hallucinations, output: {"hallucination_list": []}
+### Output Constraints
+- **Strictly prohibit explanatory text, code block markers, or extra symbols**
+- **Strictly prohibit any other format**
+- Each span in the list must be a string (with quotes)
+- Empty list must be `[]` (without quotes)
+
+=========================
+## Hallucination Detection Rules
+
+### What Constitutes Hallucination
+Content in the answer that:
+- **Contradicts information explicitly stated in the reference passages**
+- **Makes factual claims not supported by any information in the reference passages**
+- **Contains incorrect numbers, dates, names, statistics, or technical details**
+- **Fabricates quotes, citations, or specific claims not found in the passages**
+- **Misrepresents relationships, causality, or context from the reference material**
+
+### What Does NOT Constitute Hallucination
+- **Reasonable inferences drawn from the reference passages**
+- **Connecting information from multiple passages in a logical way**
+- **Paraphrasing or rephrasing reference content while preserving meaning**
+- **Natural language variations that don't change factual content**
+- **General knowledge that's consistent with the reference material**
+- **Appropriate hedging language (e.g., "may", "likely", "appears to")**
+
+### Special Considerations for Q&A
+- **Question relevance**: The answer should address the question using information from passages
+- **Attribution accuracy**: Claims should be traceable to specific reference passages
+- **Context preservation**: Information should maintain its original context and meaning
+- **Completeness vs. accuracy**: Focus on factual accuracy rather than completeness
+
+=========================
+## Span Extraction Requirements **[CRITICAL]**
+
+### Exact Substring Rule
+- Each hallucinated span MUST be copied EXACTLY character-by-character from the answer
+- Think of it as using Ctrl+C to copy a text fragment from the original answer
+- **DO NOT modify, paraphrase, summarize, or correct any text**
+- Preserve all spelling, grammar, punctuation, and spacing exactly as it appears
+
+### Granularity Rules
+- **You CANNOT mark the entire answer as hallucination**
+- Even if the answer has multiple issues, identify only specific problematic spans
+- Each span should be a meaningful fragment (phrase, sentence, or clause level)
+- **Avoid overly granular word-by-word marking unless necessary**
+
+### Validation Checklist
+Before outputting, verify each span:
+- ✓ Is this span an exact substring from the answer?
+- ✓ Does this span actually contain hallucinated content not supported by passages?
+- ✓ Is this span not the entire answer?
+- ✓ Is this span meaningful and coherent?
+
+=========================
+## Examples
+
+**Example 1: Factual Contradiction**
+- Question: "What was the patient's diagnosis?"
+- Passages mention: "diagnosed with bronchitis"
+- Answer: "The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days"
+- Reference supports: bronchitis diagnosis, antibiotics mentioned but not duration
+- Valid Output: `{"hallucination_list": ["pneumonia", "10 days"]}` ✓
+
+**Example 2: Unsupported Claim**
+- Question: "What are the benefits of the new drug?"
+- Passages mention: "showed promising results in trials"
+- Answer: "The drug reduces symptoms by 75% and has no side effects"
+- Reference doesn't support specific percentage or side effect claims
+- Valid Output: `{"hallucination_list": ["75%", "has no side effects"]}` ✓
+
+**Example 3: No Hallucinations**
+- Question: "What did the study conclude?"
+- Passages state: "study concluded that exercise improves mental health"
+- Answer: "The study concluded that regular exercise can improve mental health outcomes"
+- Valid Output: `{"hallucination_list": []}` ✓
+
+**Example 4: Multiple Issues**
+- Answer with several problems across different spans
+- Invalid: `{"hallucination_list": ["The entire answer contradicts..."]}` ✗ (entire answer)
+- Valid: `{"hallucination_list": ["95% effectiveness", "approved by FDA", "no contraindications"]}` ✓ (specific spans)
+
+**Example 5: Fabricated Details**
+- Answer: "Dr. Smith, lead researcher at Harvard University, published these findings in Nature journal"
+- Passages mention research but not specific author, institution, or publication
+- Valid Output: `{"hallucination_list": ["Dr. Smith, lead researcher at Harvard University", "in Nature journal"]}` ✓
+
+=========================
 
 **After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**

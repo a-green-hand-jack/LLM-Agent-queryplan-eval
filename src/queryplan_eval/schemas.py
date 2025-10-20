@@ -136,13 +136,124 @@ class JudgementResult(BaseModel):
     )
 
 
+class HallucinationReasoning(BaseModel):
+    """幻觉检测的 CoT 推理步骤
+    
+    支持三种任务类型的推理步骤：
+    - Data-to-Text: content_analysis, reference_comparison, hallucination_identification, span_extraction, final_verdict
+    - Q&A: question_analysis, answer_analysis, reference_verification, hallucination_identification, final_assessment  
+    - Summarization: document_analysis, summary_analysis, fidelity_verification, hallucination_identification, final_evaluation
+    """
+    
+    # Data-to-Text 任务推理步骤
+    content_analysis: Optional[str] = Field(
+        default=None,
+        description="分析生成内容和识别关键声明（Data-to-Text 任务）"
+    )
+    reference_comparison: Optional[str] = Field(
+        default=None,
+        description="与参考数据进行系统性对比（Data-to-Text 任务）"
+    )
+    
+    # Q&A 任务推理步骤
+    question_analysis: Optional[str] = Field(
+        default=None,
+        description="分析问题并识别所需信息类型（Q&A 任务）"
+    )
+    answer_analysis: Optional[str] = Field(
+        default=None,
+        description="分解答案内容并识别所有事实声明（Q&A 任务）"
+    )
+    reference_verification: Optional[str] = Field(
+        default=None,
+        description="对照参考文档验证答案声明（Q&A 任务）"
+    )
+    
+    # Summarization 任务推理步骤
+    document_analysis: Optional[str] = Field(
+        default=None,
+        description="分析原始文档内容、关键事实和主题（Summarization 任务）"
+    )
+    summary_analysis: Optional[str] = Field(
+        default=None,
+        description="分解摘要内容并识别所有事实声明（Summarization 任务）"
+    )
+    fidelity_verification: Optional[str] = Field(
+        default=None,
+        description="验证摘要与文档的忠实度（Summarization 任务）"
+    )
+    
+    # 通用推理步骤（所有任务共享）
+    hallucination_identification: str = Field(
+        description="识别特定的矛盾、无支持或误表的内容"
+    )
+    
+    # 任务特定的最终步骤
+    span_extraction: Optional[str] = Field(
+        default=None,
+        description="提取精确的幻觉片段（Data-to-Text 任务）"
+    )
+    final_assessment: Optional[str] = Field(
+        default=None,
+        description="提供答案忠实度的整体评估（Q&A 任务）"
+    )
+    final_evaluation: Optional[str] = Field(
+        default=None,
+        description="提供摘要准确性的整体评估（Summarization 任务）"
+    )
+    final_verdict: Optional[str] = Field(
+        default=None,
+        description="总结发现并提供最终评估（Data-to-Text 任务）"
+    )
+
+
 class HallucinationResult(BaseModel):
     """幻觉检测结果
     
     模型输出的幻觉片段列表，每个片段必须是 response 中的精确子串。
     如果没有检测到幻觉，hallucination_list 为空列表。
+    支持 Chain-of-Thought 推理过程。
     """
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "reasoning": {
+                "content_analysis": "Article claims 15% revenue increase and expansion to 5 countries",
+                "reference_comparison": "Reference shows 10% revenue growth and 3 countries expansion",
+                "hallucination_identification": "Two numerical contradictions: 15% vs 10% revenue, 5 vs 3 countries",
+                "span_extraction": "Extracting exact contradictory spans: '15%' and '5 new countries'",
+                "final_verdict": "Article contains factual inaccuracies in key metrics"
+            },
+            "hallucination_list": ["15%", "5 new countries"]
+        }
+    })
+    
+    reasoning: Optional[HallucinationReasoning] = Field(
+        default=None,
+        description="Chain-of-Thought 推理过程（可选，启用 CoT 时填充）"
+    )
+    
     hallucination_list: List[str] = Field(
         default_factory=list,
         description="检测到的幻觉片段列表，每个片段必须是 response 中的精确子串"
     )
+
+
+def normalize_hallucination_result(obj: HallucinationResult, include_reasoning: bool = False) -> dict:
+    """将 HallucinationResult 对象规范化为字典格式以便序列化
+    
+    Args:
+        obj: HallucinationResult 对象
+        include_reasoning: 是否在输出中包含 reasoning 字段
+        
+    Returns:
+        规范化后的字典，格式统一便于下游处理
+    """
+    result: dict = {
+        "hallucination_list": obj.hallucination_list
+    }
+    
+    # 如果启用且存在 reasoning，添加到结果中
+    if include_reasoning and obj.reasoning is not None:
+        result["reasoning"] = obj.reasoning.model_dump()
+    
+    return result

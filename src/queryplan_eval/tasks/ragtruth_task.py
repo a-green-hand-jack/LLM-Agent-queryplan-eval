@@ -10,13 +10,7 @@ import pandas as pd
 from ..core.base_task import BaseTask
 from ..core.prompt_manager import RAGPromptManager
 from ..datasets import RAGTruthDataset, RAGTruthItem
-from ..metrics.ragtruth_metrics import (
-    compute_hallucination_metrics,
-    aggregate_metrics_by_task,
-    compute_overall_metrics,
-)
-from ..metrics.span_utils import parse_spans_from_text, Span
-from ..schemas import HallucinationResult
+from ..schemas import HallucinationResult, normalize_hallucination_result
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +58,13 @@ class RAGTruthTask(BaseTask):
         ... )
         >>> metrics = task.run_evaluation()
         
-        >>> # 评估多个任务，采样 100 个样本
+        >>> # 评估多个任务，采样 100 个样本，使用 CoT 并保存推理过程
         >>> task = RAGTruthTask(
         ...     task_types=["Summary", "QA"],
         ...     split="train",
         ...     sample_n=100,
         ...     use_cot=True,
+        ...     include_reasoning=True,
         ...     llm=llm,
         ...     output_dir="outputs/ragtruth_multi"
         ... )
@@ -83,6 +78,7 @@ class RAGTruthTask(BaseTask):
         sample_n: Optional[int] = None,
         sample_ratio: Optional[float] = None,
         use_cot: bool = False,
+        include_reasoning: bool = False,
         cache_dir: Optional[Path] = None,
         llm: Any = None,
         output_dir: str = "outputs/ragtruth",
@@ -97,6 +93,7 @@ class RAGTruthTask(BaseTask):
             sample_n: 固定采样数量（与 sample_ratio 互斥）
             sample_ratio: 采样比例 (0-1)（与 sample_n 互斥）
             use_cot: 是否使用 Chain-of-Thought 推理
+            include_reasoning: 是否在结果中包含 CoT 推理过程（仅当 use_cot=True 时有效）
             cache_dir: 数据集缓存目录
             llm: LLM 实例
             output_dir: 输出目录
@@ -121,6 +118,7 @@ class RAGTruthTask(BaseTask):
         self.sample_n = sample_n
         self.sample_ratio = sample_ratio
         self.use_cot = use_cot
+        self.include_reasoning = include_reasoning
         self.cache_dir = cache_dir
         
         # 初始化 RAGPromptManager
@@ -134,7 +132,8 @@ class RAGTruthTask(BaseTask):
         
         logger.info(
             f"初始化 RAGTruthTask: task_types={task_types}, split={split}, "
-            f"use_cot={use_cot}, sample_n={sample_n}, sample_ratio={sample_ratio}"
+            f"use_cot={use_cot}, include_reasoning={include_reasoning}, "
+            f"sample_n={sample_n}, sample_ratio={sample_ratio}"
         )
         
         # 加载数据集
@@ -233,7 +232,7 @@ class RAGTruthTask(BaseTask):
             }, ensure_ascii=False)}
         ]
     
-    def get_output_schema(self):
+    def get_output_schema(self) -> type:
         """返回输出类型"""
         return HallucinationResult
     
@@ -255,70 +254,47 @@ class RAGTruthTask(BaseTask):
         Returns:
             处理后的结果记录
         """
-        task_type = item.task_type
-        response = item.output
-        
         ok = parsed is not None
-        predicted_spans: List[Span] = []
-        ground_truth_spans: List[Span] = []
-        metrics: Dict[str, float] = {}
         err = None
         
-        # 处理成功的预测
-        if ok and parsed is not None:
-            try:
-                # 解析预测的幻觉片段
-                hallucination_list = parsed.hallucination_list or []
-                predicted_spans = parse_spans_from_text(hallucination_list, response)
-                
-            except Exception as e:
-                logger.warning(f"解析预测 spans 失败: {e}")
-                ok = False
-                err = str(e)
-        
-        # 解析真实的幻觉标注
-        try:
-            hallucination_labels_gt = item.hallucination_labels
-            if hallucination_labels_gt  and hallucination_labels_gt != "[]":
-                parsed_labels = json.loads(hallucination_labels_gt)
-                ground_truth_spans = parse_spans_from_text(parsed_labels, response)
-        except Exception as e:
-            logger.warning(
-                f"解析真实 spans 失败 (idx={item.idx}): {e}"
+        # 使用 normalize_hallucination_result 来规范化处理结果
+        if parsed is not None:
+            normalized_result = normalize_hallucination_result(
+                parsed, 
+                include_reasoning=self.include_reasoning
             )
+            predicted_hallucinations = normalized_result["hallucination_list"]
+            reasoning_data = normalized_result.get("reasoning")
+        else:
+            predicted_hallucinations = []
+            reasoning_data = None
         
-        # 计算指标
-        if ok:
-            metrics = compute_hallucination_metrics(
-                predicted_spans,
-                ground_truth_spans
-            )
-        
+        # 基本结果记录
         record = {
             "idx": item.idx,
-            "task_type": task_type,
+            "task_type": item.task_type,
             "context_length": len(item.context),
-            "output_length": len(response),
+            "output_length": len(item.output),
             "hallucination_labels": item.hallucination_labels,
             "predicted_hallucinations": json.dumps(
-                parsed.hallucination_list if parsed else [], ensure_ascii=False
+                predicted_hallucinations, ensure_ascii=False
             ),
             "raw_response": raw,
             "ok": ok,
             "latency_sec": latency,
             "error": err,
-            "predicted_spans": json.dumps(
-                [(s[0], s[1]) for s in predicted_spans],
-                ensure_ascii=False
-            ),
-            "ground_truth_spans": json.dumps(
-                [(s[0], s[1]) for s in ground_truth_spans],
-                ensure_ascii=False
-            ),
         }
         
-        # 添加指标
-        record.update(metrics)
+        # 如果启用 CoT 且有推理数据，添加推理相关字段
+        if self.use_cot and reasoning_data is not None:
+            record["reasoning"] = json.dumps(reasoning_data, ensure_ascii=False)
+            
+            # 添加推理步骤的简化统计
+            reasoning_steps_count = len([v for v in reasoning_data.values() if v is not None])
+            record["reasoning_steps_count"] = reasoning_steps_count
+        else:
+            record["reasoning"] = None
+            record["reasoning_steps_count"] = 0
         
         return record
     
@@ -335,20 +311,29 @@ class RAGTruthTask(BaseTask):
         
         total = len(df)
         ok = df["ok"].sum()
-        parse_success_rate = ok / total if total > 0 else 0.0
         
-        # 计算整体指标
-        overall_metrics = compute_overall_metrics(results)
+        latency_data = df["latency_sec"].dropna()
+        lat_mean = latency_data.mean() if len(latency_data) > 0 else None
+        lat_p95 = latency_data.quantile(0.95) if len(latency_data) > 0 else None
         
-        # 计算分任务指标
-        by_task_metrics = aggregate_metrics_by_task(results)
+        # 按任务类型统计
+        task_stats = {}
+        if "task_type" in df.columns:
+            for task_type in df["task_type"].unique():
+                task_df = df[df["task_type"] == task_type]
+                task_stats[task_type] = {
+                    "total": int(len(task_df)),
+                    "ok": int(task_df["ok"].sum()),
+                    "ok_rate": float(task_df["ok"].sum() / len(task_df)) if len(task_df) > 0 else 0.0,
+                }
         
         metrics = {
             "total": int(total),
             "ok": int(ok),
-            "parse_success_rate": float(parse_success_rate),
-            "overall": overall_metrics,
-            "by_task": by_task_metrics,
+            "ok_rate": float(ok / total) if total > 0 else 0.0,
+            "latency_mean": float(lat_mean) if lat_mean is not None else None,
+            "latency_p95": float(lat_p95) if lat_p95 is not None else None,
+            "by_task": task_stats,
         }
         
         logger.info(f"指标计算完成: {metrics}")
@@ -387,8 +372,6 @@ class RAGTruthTask(BaseTask):
             df: 结果数据框
             metrics: 指标字典
         """
-        by_task = metrics.get("by_task", {})
-        
         for task_type in self.task_types:
             task_df = df[df["task_type"] == task_type]
             
@@ -407,12 +390,12 @@ class RAGTruthTask(BaseTask):
                 f.write(f"样本数: {len(task_df)}\n")
                 f.write(f"成功率: {task_df['ok'].sum() / len(task_df):.1%}\n\n")
                 
-                if task_type in by_task:
-                    task_metrics = by_task[task_type]
-                    f.write("评估指标:\n")
-                    f.write(f"  Precision: {task_metrics.get('precision', 0):.4f}\n")
-                    f.write(f"  Recall:    {task_metrics.get('recall', 0):.4f}\n")
-                    f.write(f"  F1:        {task_metrics.get('f1', 0):.4f}\n")
+                # 基本统计
+                avg_context_len = task_df['context_length'].mean() if 'context_length' in task_df else 0
+                avg_output_len = task_df['output_length'].mean() if 'output_length' in task_df else 0
+                f.write("基本统计:\n")
+                f.write(f"  平均上下文长度: {avg_context_len:.0f}\n")
+                f.write(f"  平均输出长度: {avg_output_len:.0f}\n")
             
             logger.info(f"任务 {task_type} 报告已保存: {task_report_path}")
     
@@ -431,31 +414,30 @@ class RAGTruthTask(BaseTask):
             f.write(f"  任务类型: {', '.join(self.task_types)}\n")
             f.write(f"  数据分割: {self.split}\n")
             f.write(f"  是否使用 CoT: {self.use_cot}\n")
+            f.write(f"  包含推理过程: {self.include_reasoning}\n")
             f.write("\n")
             
             f.write("总体结果:\n")
             f.write(f"  总样本数: {metrics['total']}\n")
             f.write(f"  成功样本: {metrics['ok']}\n")
-            f.write(f"  成功率: {metrics['parse_success_rate']:.1%}\n")
+            f.write(f"  成功率: {metrics['ok_rate']:.1%}\n")
             f.write("\n")
             
-            overall = metrics.get("overall", {})
-            f.write("总体指标:\n")
-            f.write(f"  Precision: {overall.get('precision', 0):.4f}\n")
-            f.write(f"  Recall:    {overall.get('recall', 0):.4f}\n")
-            f.write(f"  F1:        {overall.get('f1', 0):.4f}\n")
-            f.write("\n")
+            # 性能统计
+            if metrics.get("latency_mean") is not None:
+                f.write("性能统计:\n")
+                f.write(f"  平均延迟: {metrics['latency_mean']:.2f}s\n")
+                if metrics.get("latency_p95") is not None:
+                    f.write(f"  P95延迟: {metrics['latency_p95']:.2f}s\n")
+                f.write("\n")
             
             by_task = metrics.get("by_task", {})
             if by_task:
-                f.write("分任务指标:\n")
+                f.write("分任务统计:\n")
                 for task_type, task_metrics in by_task.items():
-                    count = task_metrics.get("count", 0)
-                    f.write(f"\n  {task_type} (n={count}):\n")
-                    f.write(
-                        f"    Precision: {task_metrics.get('precision', 0):.4f}\n"
-                    )
-                    f.write(f"    Recall:    {task_metrics.get('recall', 0):.4f}\n")
-                    f.write(f"    F1:        {task_metrics.get('f1', 0):.4f}\n")
+                    total = task_metrics.get("total", 0)
+                    ok_rate = task_metrics.get("ok_rate", 0)
+                    f.write(f"\n  {task_type} (n={total}):\n")
+                    f.write(f"    成功率: {ok_rate:.1%}\n")
         
         logger.info(f"摘要已保存: {summary_path}")

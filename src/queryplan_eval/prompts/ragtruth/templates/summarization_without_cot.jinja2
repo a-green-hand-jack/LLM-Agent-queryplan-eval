@@ -1,25 +1,124 @@
-Below is the original document:
+# Document Summarization Hallucination Detection Task
+
+You are a hallucination detection expert specializing in document summarization evaluation. Your task is to identify hallucinated content in a summary by comparing it with the original document.
+
+## Input Format
+**Original Document:**
 {{ reference }}
 
-Below is a summary of the document:
+**Generated Summary:**
 {{ response }}
 
-Your task is to determine whether the summary contains hallucinations.
+## Output Format Requirements **[CRITICAL]**
 
-Then, compile the labeled hallucinated spans into a JSON dict, with a key "hallucination_list" and its value is a list of hallucinated spans. 
+**You must strictly follow this JSON format without deviation:**
 
-**CRITICAL REQUIREMENTS**:
-1. Each span MUST be a continuous substring copied EXACTLY character-by-character from the summary above (the "{{ response }}" field). Think of it as copying a fragment of text with Ctrl+C from the original summary.
-2. DO NOT modify, paraphrase, summarize, or correct any text. Copy the original text verbatim, preserving all spelling, grammar, punctuation, and spacing exactly as it appears.
-3. You CANNOT mark the entire summary as hallucination. Even if the summary has issues, you must identify only the specific problematic spans within it.
-4. Each span should be a meaningful fragment, not the whole summary.
+### Standard Case (Hallucinations Detected)
+Output a JSON object with the `hallucination_list` field:
+```json
+{
+  "hallucination_list": ["exact span 1", "exact span 2", ...]
+}
+```
 
-Example: If the summary is "The research found that coffee consumption reduces heart disease risk by 23% according to the longitudinal study", valid outputs could be:
-- {"hallucination_list": ["23%", "longitudinal study"]} ✓ (these are exact substrings)
-- {"hallucination_list": ["The research found that coffee consumption reduces heart disease risk by 23% according to the longitudinal study"]} ✗ (cannot mark the entire summary)
-- {"hallucination_list": ["25 percent", "multi-year research"]} ✗ (these are NOT in the original text)
+### No Hallucinations Case
+Output a JSON object with empty list:
+```json
+{
+  "hallucination_list": []}
+```
 
-If there are potential hallucinations, output: {"hallucination_list": ["exact span 1", "exact span 2", ...]}
-If there are no hallucinations, output: {"hallucination_list": []}
+### Output Constraints
+- **Strictly prohibit explanatory text, code block markers, or extra symbols**
+- **Strictly prohibit any other format**
+- Each span in the list must be a string (with quotes)
+- Empty list must be `[]` (without quotes)
+
+=========================
+## Hallucination Detection Rules
+
+### What Constitutes Hallucination
+Content in the summary that:
+- **Contradicts information explicitly stated in the original document**
+- **Introduces factual claims, statistics, or details not present in the original document**
+- **Fabricates quotes, names, dates, numbers, or specific details**
+- **Misrepresents the tone, conclusion, or main arguments of the original document**
+- **Adds causal relationships or implications not supported by the original text**
+- **Invents methodological details, study parameters, or technical specifications**
+
+### What Does NOT Constitute Hallucination
+- **Appropriate paraphrasing that preserves the original meaning**
+- **Reasonable condensation of information while maintaining accuracy**
+- **Combining related information from different parts of the document**
+- **Using synonyms or alternative phrasing that doesn't change the factual content**
+- **Natural language variations in expressing the same concepts**
+- **Appropriate generalization from specific examples in the document**
+
+### Special Considerations for Summarization
+- **Fidelity to source**: Summary claims must be traceable to the original document
+- **Proportional representation**: Important points should not be misrepresented in importance
+- **Context preservation**: Information should maintain its original context and nuance
+- **Completeness vs. accuracy**: Focus on factual accuracy over comprehensive coverage
+- **Attribution integrity**: Any attributed statements or data must match the source
+
+=========================
+## Span Extraction Requirements **[CRITICAL]**
+
+### Exact Substring Rule
+- Each hallucinated span MUST be copied EXACTLY character-by-character from the summary
+- Think of it as using Ctrl+C to copy a text fragment from the original summary
+- **DO NOT modify, paraphrase, summarize, or correct any text**
+- Preserve all spelling, grammar, punctuation, and spacing exactly as it appears
+
+### Granularity Rules
+- **You CANNOT mark the entire summary as hallucination**
+- Even if the summary has multiple issues, identify only specific problematic spans
+- Each span should be a meaningful fragment (phrase, sentence, or clause level)
+- **Avoid overly granular word-by-word marking unless necessary**
+
+### Validation Checklist
+Before outputting, verify each span:
+- ✓ Is this span an exact substring from the summary?
+- ✓ Does this span actually contain hallucinated content not found in the original document?
+- ✓ Is this span not the entire summary?
+- ✓ Is this span meaningful and coherent?
+
+=========================
+## Examples
+
+**Example 1: Statistical Hallucination**
+- Original: "The study showed improved outcomes in patients"
+- Summary: "The research found that coffee consumption reduces heart disease risk by 23% according to the longitudinal study"
+- Document doesn't mention specific percentage or study type
+- Valid Output: `{"hallucination_list": ["23%", "longitudinal study"]}` ✓
+
+**Example 2: Fabricated Details**
+- Original: "Research conducted on treatment effectiveness"
+- Summary: "Dr. Johnson's team at Stanford University published results showing 95% success rates"
+- Document doesn't mention specific researcher, institution, or success rate
+- Valid Output: `{"hallucination_list": ["Dr. Johnson's team at Stanford University", "95% success rates"]}` ✓
+
+**Example 3: No Hallucinations**
+- Original: "The clinical trial demonstrated significant improvement in patient recovery times"
+- Summary: "The clinical trial showed notable improvements in how quickly patients recovered"
+- Valid Output: `{"hallucination_list": []}` ✓
+
+**Example 4: Contradictory Information**
+- Original: "The medication showed mild side effects in 15% of patients"
+- Summary: "The drug had no adverse effects and showed severe complications in most patients"
+- Valid Output: `{"hallucination_list": ["no adverse effects", "severe complications in most patients"]}` ✓
+
+**Example 5: Multiple Fabrications**
+- Summary with several invented claims across different spans
+- Invalid: `{"hallucination_list": ["The entire summary contains fabricated information"]}` ✗ (entire summary)
+- Valid: `{"hallucination_list": ["published in Nature", "funded by NIH", "replicated 5 times"]}` ✓ (specific spans)
+
+**Example 6: Methodological Invention**
+- Original: "Researchers conducted experiments"
+- Summary: "The double-blind randomized controlled trial with 1,000 participants over 2 years"
+- Document doesn't specify study design, sample size, or duration
+- Valid Output: `{"hallucination_list": ["double-blind randomized controlled trial", "1,000 participants", "over 2 years"]}` ✓
+
+=========================
 
 **After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**
