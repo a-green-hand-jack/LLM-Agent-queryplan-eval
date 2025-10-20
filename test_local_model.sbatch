@@ -1,18 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=test-local-llm
-#SBATCH --output=logs/test_local_model_%j.out
-#SBATCH --error=logs/test_local_model_%j.err
-#SBATCH --time=01:00:00
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --job-name=test-local-llm-v100
+#SBATCH --output=logs/test_local_model_v100_%j.out
+#SBATCH --error=logs/test_local_model_v100_%j.err
+#SBATCH --time=02:00:00
+#SBATCH --gres=gpu:v100:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
 
 # 设置环境变量
 export HF_HOME=/ibex/user/wuj0c/cache/HF
 export CUDA_VISIBLE_DEVICES=0
 
 echo "=========================================="
-echo "本地 HuggingFace 模型测试"
+echo "本地 HuggingFace 模型测试 (V100 版本)"
 echo "=========================================="
 echo "开始时间: $(date)"
 echo "HF_HOME: $HF_HOME"
@@ -24,6 +24,10 @@ cd /ibex/user/wuj0c/Projects/LLM/Safety/LLM-Agent-queryplan-eval
 
 # 创建日志目录
 mkdir -p logs
+
+echo ""
+echo "步骤 0: 安装缺少的依赖..."
+uv pip install accelerate
 
 echo ""
 echo "步骤 1: 测试 GPU 可用性..."
@@ -87,7 +91,7 @@ try:
         model_name,
         trust_remote_code=True,
         torch_dtype=torch.float16,
-        device_map='cuda'
+        device_map='auto'
     )
     print('✓ 模型加载成功')
     
@@ -111,7 +115,7 @@ uv run python scripts/run_eval_ragtruth.py \
   --task-types Summary \
   --sample 2 \
   --temperature 0.0 \
-  --outdir outputs/test_local_model
+  --outdir outputs/test_local_model_v100
 
 echo ""
 echo "=========================================="
