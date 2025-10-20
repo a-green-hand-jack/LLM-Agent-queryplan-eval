@@ -11,6 +11,7 @@ from ..core.base_task import BaseTask
 from ..core.prompt_manager import RAGPromptManager
 from ..datasets import RAGTruthDataset, RAGTruthItem
 from ..schemas import HallucinationResult, normalize_hallucination_result
+from ..metrics.span_utils import parse_spans_from_text, calculate_span_f1
 
 logger = logging.getLogger(__name__)
 
@@ -275,10 +276,13 @@ class RAGTruthTask(BaseTask):
             "task_type": item.task_type,
             "context_length": len(item.context),
             "output_length": len(item.output),
+            "output":item.output,
             "hallucination_labels": item.hallucination_labels,
+            "hallucination_spans":item.hallucination_spans,
             "predicted_hallucinations": json.dumps(
                 predicted_hallucinations, ensure_ascii=False
             ),
+            "predicted_hallucination_spans":parse_spans_from_text(predicted_hallucinations,item.output),
             "raw_response": raw,
             "ok": ok,
             "latency_sec": latency,
@@ -316,21 +320,82 @@ class RAGTruthTask(BaseTask):
         lat_mean = latency_data.mean() if len(latency_data) > 0 else None
         lat_p95 = latency_data.quantile(0.95) if len(latency_data) > 0 else None
         
+        # 计算 span-level 指标
+        precision_scores = []
+        recall_scores = []
+        f1_scores = []
+        
+        # 只对解析成功的样本计算指标
+        ok_df = df[df["ok"]]
+        for _, row in ok_df.iterrows():
+            predicted_spans = row.get("predicted_hallucination_spans", [])
+            ground_truth_spans = row.get("hallucination_spans", [])
+            
+            # 确保 spans 是列表格式
+            if not isinstance(predicted_spans, list):
+                predicted_spans = []
+            if not isinstance(ground_truth_spans, list):
+                ground_truth_spans = []
+            
+            # 计算单个样本的指标
+            precision, recall, f1 = calculate_span_f1(predicted_spans, ground_truth_spans)
+            precision_scores.append(precision)
+            recall_scores.append(recall)
+            f1_scores.append(f1)
+        
+        # 计算整体平均指标
+        precision_mean = sum(precision_scores) / len(precision_scores) if precision_scores else 0.0
+        recall_mean = sum(recall_scores) / len(recall_scores) if recall_scores else 0.0
+        f1_mean = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
+        
         # 按任务类型统计
         task_stats = {}
         if "task_type" in df.columns:
             for task_type in df["task_type"].unique():
                 task_df = df[df["task_type"] == task_type]
+                task_ok_df = task_df[task_df["ok"]]
+                
+                # 计算该任务类型的 span-level 指标
+                task_precision_scores = []
+                task_recall_scores = []
+                task_f1_scores = []
+                
+                # 使用 copy() 确保 DataFrame 类型
+                for _, row in task_ok_df.copy().iterrows():  # type: ignore
+                    predicted_spans = row.get("predicted_hallucination_spans", [])
+                    ground_truth_spans = row.get("hallucination_spans", [])
+                    
+                    if not isinstance(predicted_spans, list):
+                        predicted_spans = []
+                    if not isinstance(ground_truth_spans, list):
+                        ground_truth_spans = []
+                    
+                    precision, recall, f1 = calculate_span_f1(predicted_spans, ground_truth_spans)
+                    task_precision_scores.append(precision)
+                    task_recall_scores.append(recall)
+                    task_f1_scores.append(f1)
+                
+                # 计算该任务类型的平均指标
+                task_precision_mean = sum(task_precision_scores) / len(task_precision_scores) if task_precision_scores else 0.0
+                task_recall_mean = sum(task_recall_scores) / len(task_recall_scores) if task_recall_scores else 0.0
+                task_f1_mean = sum(task_f1_scores) / len(task_f1_scores) if task_f1_scores else 0.0
+                
                 task_stats[task_type] = {
                     "total": int(len(task_df)),
                     "ok": int(task_df["ok"].sum()),
                     "ok_rate": float(task_df["ok"].sum() / len(task_df)) if len(task_df) > 0 else 0.0,
+                    "precision_mean": float(task_precision_mean),
+                    "recall_mean": float(task_recall_mean),
+                    "f1_mean": float(task_f1_mean),
                 }
         
         metrics = {
             "total": int(total),
             "ok": int(ok),
             "ok_rate": float(ok / total) if total > 0 else 0.0,
+            "precision_mean": float(precision_mean),
+            "recall_mean": float(recall_mean), 
+            "f1_mean": float(f1_mean),
             "latency_mean": float(lat_mean) if lat_mean is not None else None,
             "latency_p95": float(lat_p95) if lat_p95 is not None else None,
             "by_task": task_stats,
