@@ -100,7 +100,7 @@ class QueryPlanTask(BaseTask):
             {"role": "user", "content": payload}
         ]
     
-    def get_output_schema(self):
+    def get_output_schema(self) -> type:
         """返回输出类型"""
         return QueryResult
     

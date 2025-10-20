@@ -128,7 +128,7 @@ class BaseTask(ABC):
         pass
     
     @abstractmethod
-    def get_output_schema(self):
+    def get_output_schema(self) -> type:
         """返回期望的输出 Pydantic 模型
         
         Returns:

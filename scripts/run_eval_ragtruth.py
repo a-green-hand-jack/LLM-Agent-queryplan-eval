@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import os
 import sys
-import json
 import logging
 from pathlib import Path
 from argparse import ArgumentParser
@@ -148,7 +147,7 @@ def main():
         logger.info("✓ LLM 初始化完成")
         
         # 初始化任务
-        logger.info(f"初始化 RAGTruthTask...")
+        logger.info("初始化 RAGTruthTask...")
         task = RAGTruthTask(
             task_types=args.task_types,
             split=args.split,
@@ -186,35 +185,34 @@ def _print_summary(metrics: dict, outdir: str) -> None:
     print("=" * 70)
     
     # 总体结果
-    print(f"\n总体结果:")
+    print("\n总体结果:")
     print(f"  总样本数: {metrics['total']}")
     print(f"  成功样本: {metrics['ok']}")
-    print(f"  成功率: {metrics['parse_success_rate']:.1%}")
+    print(f"  成功率: {metrics['ok_rate']:.1%}")
     
-    # 总体指标
-    overall = metrics.get("overall", {})
-    print(f"\n总体指标:")
-    print(f"  Precision: {overall.get('precision', 0):.4f}")
-    print(f"  Recall:    {overall.get('recall', 0):.4f}")
-    print(f"  F1:        {overall.get('f1', 0):.4f}")
+    # 性能统计
+    if metrics.get("latency_mean") is not None:
+        print("\n性能统计:")
+        print(f"  平均延迟: {metrics['latency_mean']:.2f}s")
+        if metrics.get("latency_p95") is not None:
+            print(f"  P95延迟: {metrics['latency_p95']:.2f}s")
     
-    # 分任务指标
+    # 分任务统计
     by_task = metrics.get("by_task", {})
     if by_task:
-        print(f"\n分任务指标:")
+        print("\n分任务统计:")
         for task_type, task_metrics in by_task.items():
-            count = task_metrics.get("count", 0)
-            print(f"\n  {task_type} (n={count}):")
-            print(f"    Precision: {task_metrics.get('precision', 0):.4f}")
-            print(f"    Recall:    {task_metrics.get('recall', 0):.4f}")
-            print(f"    F1:        {task_metrics.get('f1', 0):.4f}")
+            total = task_metrics.get("total", 0)
+            ok_rate = task_metrics.get("ok_rate", 0)
+            print(f"\n  {task_type} (n={total}):")
+            print(f"    成功率: {ok_rate:.1%}")
     
     print("\n" + "=" * 70)
     print(f"详细结果已保存到: {outdir}")
-    print(f"  - results.csv: 详细结果")
-    print(f"  - metrics.json: 指标数据")
-    print(f"  - summary.txt: 文本摘要")
-    print(f"  - report_*.txt: 分任务报告")
+    print("  - results.csv: 详细结果")
+    print("  - metrics.json: 指标数据")
+    print("  - summary.txt: 文本摘要")
+    print("  - report_*.txt: 分任务报告")
     print("=" * 70 + "\n")
 
 
