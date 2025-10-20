@@ -7,7 +7,7 @@ from typing import Optional, Tuple, Type, TypeVar
 
 import torch
 import outlines
-from outlines.models import transformers as transformers_model
+import transformers
 from pydantic import BaseModel
 
 from ..core.base_llm import BaseLLM
@@ -41,11 +41,25 @@ class HuggingFaceLLM(BaseLLM):
         logger.info(f"正在加载 HuggingFace 模型: {model_name} (device: {self.device})")
         
         try:
-            # 使用 outlines 的 transformers 模型包装器
-            self.model = transformers_model(  # type: ignore
+            # 显式加载 tokenizer 和模型
+            logger.info("加载 Tokenizer...")
+            tokenizer = transformers.AutoTokenizer.from_pretrained(
                 model_name,
-                device=self.device
+                trust_remote_code=True
             )
+            
+            logger.info("加载模型...")
+            hf_model = transformers.AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                device_map=self.device
+            )
+            
+            # 使用 outlines.from_transformers 包装模型
+            logger.info("使用 Outlines 包装模型...")
+            self.model = outlines.from_transformers(hf_model, tokenizer)
+            
             logger.info(f"✓ 已初始化 HuggingFace 本地模型: {model_name}")
         except Exception as e:
             logger.error(f"初始化本地模型失败: {e}")
@@ -71,10 +85,16 @@ class HuggingFaceLLM(BaseLLM):
         """
         t0 = time.time()
         try:
-            # 调用 outlines 模型生成结构化输出
-            result = self.model(
-                outlines.inputs.Chat(chat),
-                output_schema,
+            # 使用 outlines.Generator 生成结构化输出
+            generator = outlines.Generator(self.model, output_schema)
+            
+            # 构建 chat 消息为提示文本
+            prompt = self._format_chat_to_prompt(chat)
+            
+            # 生成结构化输出
+            result = generator(
+                prompt,
+                max_new_tokens=1024,
                 temperature=temperature
             )
             dt = time.time() - t0
@@ -101,3 +121,30 @@ class HuggingFaceLLM(BaseLLM):
             dt = time.time() - t0
             logger.error(f"调用本地模型失败: {e}")
             return None, None, dt
+    
+    def _format_chat_to_prompt(self, chat: list[dict[str, str]]) -> str:
+        """将聊天消息列表格式化为提示文本
+        
+        Args:
+            chat: 聊天消息列表 [{"role": "system", "content": "..."}, ...]
+            
+        Returns:
+            格式化后的提示文本
+        """
+        prompt_parts = []
+        for msg in chat:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            if role == "system":
+                prompt_parts.append(f"System: {content}")
+            elif role == "user":
+                prompt_parts.append(f"User: {content}")
+            elif role == "assistant":
+                prompt_parts.append(f"Assistant: {content}")
+        
+        prompt = "\n".join(prompt_parts)
+        if chat and chat[-1].get("role") != "assistant":
+            prompt += "\nAssistant:"
+        
+        return prompt

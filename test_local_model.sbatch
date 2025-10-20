@@ -68,8 +68,9 @@ echo ""
 echo "步骤 3: 测试 Outlines 集成..."
 python -c "
 import outlines
-from outlines.models import transformers as transformers_model
+import transformers
 from pydantic import BaseModel
+import torch
 
 class TestOutput(BaseModel):
     reasoning: str
@@ -77,9 +78,23 @@ class TestOutput(BaseModel):
 
 try:
     model_name = 'Qwen/Qwen2.5-7B-Instruct'
-    print(f'使用 Outlines 加载模型: {model_name}')
-    model = transformers_model(model_name, device='cuda')
+    print(f'加载 Tokenizer...')
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    print('✓ Tokenizer 加载成功')
+    
+    print(f'加载模型...')
+    hf_model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        torch_dtype=torch.float16,
+        device_map='cuda'
+    )
+    print('✓ 模型加载成功')
+    
+    print(f'使用 Outlines 包装模型...')
+    model = outlines.from_transformers(hf_model, tokenizer)
     print('✓ Outlines 模型加载成功')
+    
 except Exception as e:
     print(f'✗ Outlines 加载失败: {e}')
     import traceback
