@@ -39,75 +39,12 @@ if torch.cuda.is_available():
     print(f'CUDA 设备数: {torch.cuda.device_count()}')
     print(f'当前设备: {torch.cuda.current_device()}')
     print(f'设备名称: {torch.cuda.get_device_name(0)}')
-    print(f'显存大小: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB')
+    props = torch.cuda.get_device_properties(0)
+    print(f'显存大小: {props.total_memory / 1e9:.2f} GB')
 "
 
 echo ""
-echo "步骤 2: 测试 HuggingFace 模型加载..."
-python -c "
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
-
-model_name = 'Qwen/Qwen2.5-7B-Instruct'
-print(f'加载模型: {model_name}')
-
-try:
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    print('✓ Tokenizer 加载成功')
-    
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.float16,
-        device_map='auto',
-        trust_remote_code=True
-    )
-    print('✓ 模型加载成功')
-    print(f'模型参数量: {sum(p.numel() for p in model.parameters()) / 1e9:.2f}B')
-except Exception as e:
-    print(f'✗ 加载失败: {e}')
-    exit(1)
-"
-
-echo ""
-echo "步骤 3: 测试 Outlines 集成..."
-python -c "
-import outlines
-import transformers
-from pydantic import BaseModel
-import torch
-
-class TestOutput(BaseModel):
-    reasoning: str
-    answer: str
-
-try:
-    model_name = 'Qwen/Qwen2.5-7B-Instruct'
-    print(f'加载 Tokenizer...')
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    print('✓ Tokenizer 加载成功')
-    
-    print(f'加载模型...')
-    hf_model = transformers.AutoModelForCausalLM.from_pretrained(
-        model_name,
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
-        device_map='auto'
-    )
-    print('✓ 模型加载成功')
-    
-    print(f'使用 Outlines 包装模型...')
-    model = outlines.from_transformers(hf_model, tokenizer)
-    print('✓ Outlines 模型加载成功')
-    
-except Exception as e:
-    print(f'✗ Outlines 加载失败: {e}')
-    import traceback
-    traceback.print_exc()
-    exit(1)
-"
-
-echo ""
-echo "步骤 4: 测试评估脚本 (小规模测试)..."
+echo "步骤 2: 测试评估脚本 (本地模型，2个样本)..."
 uv run python scripts/run_eval_ragtruth.py \
   --llm-type local \
   --model-name Qwen/Qwen2.5-7B-Instruct \
@@ -116,6 +53,16 @@ uv run python scripts/run_eval_ragtruth.py \
   --sample 2 \
   --temperature 0.0 \
   --outdir outputs/test_local_model_v100
+
+echo ""
+echo "步骤 3: 测试评估脚本 (OpenAI API，作为对比)..."
+uv run python scripts/run_eval_ragtruth.py \
+  --llm-type openai \
+  --model qwen-flash \
+  --task-types Summary \
+  --sample 2 \
+  --temperature 0.0 \
+  --outdir outputs/test_openai_model_v100
 
 echo ""
 echo "=========================================="

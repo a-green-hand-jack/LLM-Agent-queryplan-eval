@@ -7,7 +7,7 @@ name = "queryplan-eval"
 version = "0.1.0"
 description = "QueryPlan-LLM Prompt A/B Evaluation Tool - 从自然语言查询中稳定抽取结构化计划的评测框架"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "Jieke Wu, SFB Lab, KAUST", email = "jieke.wu@kaust.edu.sa" },
