@@ -49,12 +49,19 @@ class HuggingFaceLLM(BaseLLM):
             )
             
             logger.info("加载模型...")
+            # 先加载到 CPU，避免 device_map='auto' 导致的 torchvision 版本问题
+            # 然后再移动到指定设备
             hf_model = transformers.AutoModelForCausalLM.from_pretrained(
                 model_name,
                 trust_remote_code=True,
                 torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                device_map=self.device
+                device_map="cpu"  # 先加载到 CPU
             )
+            
+            # 移动到指定设备
+            if self.device == "cuda":
+                logger.info(f"将模型移动到 {self.device}...")
+                hf_model = hf_model.to(self.device)
             
             # 使用 outlines.from_transformers 包装模型
             logger.info("使用 Outlines 包装模型...")
