@@ -82,7 +82,7 @@ def main():
     for csv_path in [args.csv_path_a, args.csv_path_b]:
         if not Path(csv_path).exists():
             logger.error(f"文件不存在: {csv_path}")
-        sys.exit(1)
+            sys.exit(1)
     
     # 确定输出目录
     if args.outdir is None:
