@@ -47,14 +47,31 @@ def main():
         help="随机采样 n 个样本（如果不指定则使用全部数据）"
     )
     parser.add_argument(
+        "--llm-type",
+        choices=["openai", "local"],
+        default="openai",
+        help="LLM 类型：'openai' 使用 OpenAI API，'local' 使用本地模型，默认: openai"
+    )
+    parser.add_argument(
         "--model",
         default="qwen-flash",
-        help="模型名称（默认: qwen-flash）"
+        help="OpenAI 模型名称，默认: qwen-flash (仅在 --llm-type=openai 时使用)"
+    )
+    parser.add_argument(
+        "--model-name",
+        default="Qwen/Qwen2.5-7B-Instruct",
+        help="本地模型名称，默认: Qwen/Qwen2.5-7B-Instruct (仅在 --llm-type=local 时使用)"
+    )
+    parser.add_argument(
+        "--device",
+        choices=["cuda", "cpu"],
+        default="cuda",
+        help="本地模型设备，默认: cuda (仅在 --llm-type=local 时使用)"
     )
     parser.add_argument(
         "--base-url",
         default=None,
-        help="API 基础 URL"
+        help="API 基础 URL (仅在 --llm-type=openai 时使用)"
     )
     parser.add_argument(
         "--prompt-version",
@@ -83,33 +100,59 @@ def main():
     # 加载环境变量
     env_path = Path(__file__).parent.parent / '.env'
     load_dotenv(dotenv_path=env_path)
-    api_key = os.environ.get("qwen_key") or os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("缺少 API 密钥。请在 .env 中设置 qwen_key 或 OPENAI_API_KEY")
-        sys.exit(1)
     
-    # 确定 base_url
-    if args.base_url is None:
-        args.base_url = os.environ.get(
-            "QWEN_BASE_URL",
-            "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        )
-    
-    logger.info(f"开始查询计划评估")
-    logger.info(f"数据文件: {args.data}")
-    logger.info(f"样本数: {args.sample if args.sample else '全部'}")
-    logger.info(f"模型: {args.model}")
-    logger.info(f"Prompt 版本: {args.prompt_version}")
-    logger.info(f"启用 CoT: {args.enable_cot}")
-    logger.info(f"输出目录: {args.outdir}")
+    print("=" * 70)
+    print("查询计划抽取评估")
+    print("=" * 70)
+    print(f"数据文件: {args.data}")
+    print(f"样本数: {args.sample if args.sample else '全部'}")
+    print(f"Prompt 版本: {args.prompt_version}")
+    print(f"启用 CoT: {args.enable_cot}")
+    print(f"采样温度: {args.temperature}")
+    print(f"输出目录: {args.outdir}")
+    print("-" * 70)
     
     try:
-        # 初始化 LLM
-        llm = OpenAILLM(
-            model_name=args.model,
-            base_url=args.base_url,
-            api_key=api_key
-        )
+        # 根据 llm-type 初始化 LLM
+        if args.llm_type == "openai":
+            print("LLM 类型: OpenAI API")
+            api_key = os.environ.get("qwen_key") or os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                logger.error("缺少 API 密钥。请在 .env 中设置 qwen_key 或 OPENAI_API_KEY")
+                sys.exit(1)
+            
+            # 确定 base_url
+            if args.base_url is None:
+                args.base_url = os.environ.get(
+                    "QWEN_BASE_URL",
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                )
+            
+            print(f"模型: {args.model}")
+            print(f"Base URL: {args.base_url}")
+            print("-" * 70)
+            
+            logger.info("初始化 OpenAI LLM...")
+            llm = OpenAILLM(
+                model_name=args.model,
+                base_url=args.base_url,
+                api_key=api_key
+            )
+            logger.info("✓ OpenAI LLM 初始化完成")
+        
+        elif args.llm_type == "local":
+            print("LLM 类型: 本地 HuggingFace 模型")
+            print(f"模型: {args.model_name}")
+            print(f"设备: {args.device}")
+            print("-" * 70)
+            
+            from queryplan_eval.llms import HuggingFaceLLM
+            logger.info("初始化本地 HuggingFace LLM...")
+            llm = HuggingFaceLLM(
+                model_name=args.model_name,
+                device=args.device
+            )
+            logger.info("✓ 本地 HuggingFace LLM 初始化完成")
         
         # 初始化 Prompt Manager
         prompt_manager = PromptManager(
