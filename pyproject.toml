@@ -42,6 +42,7 @@ dependencies = [
     "outlines[openai]>=1.0.7",
     "datasets>=4.2.0",
     "transformers>=4.57.1",
+    "accelerate>=1.11.0",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +59,7 @@ gpu = [
     "torch>=2.5.1",
     "torchvision>=0.20.1",
     "torchaudio>=2.5.1",
+    "accelerate>=1.11.0",
 ]
 
 cpu = [

@@ -26,8 +26,8 @@ source .venv/bin/activate
 # 安装 PyTorch CUDA 12.1+ 版本 (兼容 CUDA 12.8)
 uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-# 安装 Transformers
-uv pip install transformers
+# 安装 Transformers 和 Accelerate
+uv pip install transformers accelerate
 ```
 
 #### 使用 pyproject.toml 安装
