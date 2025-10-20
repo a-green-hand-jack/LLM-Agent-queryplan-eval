@@ -1,0 +1,33 @@
+Below is a question:
+{{ question }}
+
+Below are the related passages:
+{{ reference }}
+
+Below is an answer:
+{{ response }}
+
+Your task is to determine whether the answer contains hallucinations.
+
+First, provide reasoning with the following format:
+## Step 1: <your first reasoning step>
+## Step 2: <your next reasoning step>
+...(add as many steps as needed)
+
+Then, compile the labeled hallucinated spans into a JSON dict, with a key "hallucination_list" and its value is a list of hallucinated spans. 
+
+**CRITICAL REQUIREMENTS**:
+1. Each span MUST be a continuous substring copied EXACTLY character-by-character from the answer above (the "{{ response }}" field). Think of it as copying a fragment of text with Ctrl+C from the original answer.
+2. DO NOT modify, paraphrase, summarize, or correct any text. Copy the original text verbatim, preserving all spelling, grammar, punctuation, and spacing exactly as it appears.
+3. You CANNOT mark the entire answer as hallucination. Even if the answer has issues, you must identify only the specific problematic spans within it.
+4. Each span should be a meaningful fragment, not the whole answer.
+
+Example: If the answer is "The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days", valid outputs could be:
+- {"hallucination_list": ["pneumonia", "10 days"]} ✓ (these are exact substrings)
+- {"hallucination_list": ["The patient was diagnosed with pneumonia and prescribed antibiotics for 10 days"]} ✗ (cannot mark the entire answer)
+- {"hallucination_list": ["lung infection", "two weeks"]} ✗ (these are NOT in the original text)
+
+If there are potential hallucinations, output: {"hallucination_list": ["exact span 1", "exact span 2", ...]}
+If there are no hallucinations, output: {"hallucination_list": []}
+
+**After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**

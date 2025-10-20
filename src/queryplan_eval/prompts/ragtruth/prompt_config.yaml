@@ -1,0 +1,67 @@
+# Prompt模板配置文件
+# 基于论文附录A.1的原始prompt内容
+
+templates:
+  summarization:
+    with_cot:
+      file: "summarization_with_cot.jinja2"
+      description: "Summarization task with chain-of-thought reasoning"
+      variables: ["reference", "response"]
+    without_cot:
+      file: "summarization_without_cot.jinja2"
+      description: "Summarization task without reasoning"
+      variables: ["reference", "response"]
+  
+  question_answering:
+    with_cot:
+      file: "qa_with_cot.jinja2"
+      description: "Question answering task with chain-of-thought reasoning"
+      variables: ["question", "reference", "response"]
+    without_cot:
+      file: "qa_without_cot.jinja2"
+      description: "Question answering task without reasoning"
+      variables: ["question", "reference", "response"]
+  
+  data_to_text:
+    with_cot:
+      file: "data_to_text_with_cot.jinja2"
+      description: "Data-to-text generation task with chain-of-thought reasoning"
+      variables: ["reference", "response"]
+    without_cot:
+      file: "data_to_text_without_cot.jinja2"
+      description: "Data-to-text generation task without reasoning"
+      variables: ["reference", "response"]
+
+# 变量说明
+variables:
+  reference: |
+    对于summarization任务: 原始完整文档
+    对于question_answering任务: 相关段落（参考资料）
+    对于data_to_text任务: JSON格式的结构化数据
+  response: |
+    对于summarization任务: 生成的摘要
+    对于question_answering任务: 生成的答案
+    对于data_to_text任务: 基于数据生成的文章
+  question: |
+    仅用于question_answering任务: 用户提出的问题
+
+# 输出格式说明
+output_format: |
+  所有prompt都要求模型输出统一的JSON格式:
+  {"hallucination_list": ["span1", "span2", ...]}
+  如果没有幻觉则返回空列表: {"hallucination_list": []}
+
+# 使用说明
+usage: |
+  1. 模板使用Jinja2语法，变量用 {{ variable_name }} 标记
+  2. 根据task_type和use_cot参数选择对应的模板
+  3. 使用PromptManager.get_prompt()方法获取渲染后的prompt
+  
+  示例:
+    pm = PromptManager()
+    prompt = pm.get_prompt(
+        task_type="summarization",
+        use_cot=True,
+        reference="原文内容...",
+        response="摘要内容..."
+    )

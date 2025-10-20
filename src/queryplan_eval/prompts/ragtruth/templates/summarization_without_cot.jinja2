@@ -1,0 +1,25 @@
+Below is the original document:
+{{ reference }}
+
+Below is a summary of the document:
+{{ response }}
+
+Your task is to determine whether the summary contains hallucinations.
+
+Then, compile the labeled hallucinated spans into a JSON dict, with a key "hallucination_list" and its value is a list of hallucinated spans. 
+
+**CRITICAL REQUIREMENTS**:
+1. Each span MUST be a continuous substring copied EXACTLY character-by-character from the summary above (the "{{ response }}" field). Think of it as copying a fragment of text with Ctrl+C from the original summary.
+2. DO NOT modify, paraphrase, summarize, or correct any text. Copy the original text verbatim, preserving all spelling, grammar, punctuation, and spacing exactly as it appears.
+3. You CANNOT mark the entire summary as hallucination. Even if the summary has issues, you must identify only the specific problematic spans within it.
+4. Each span should be a meaningful fragment, not the whole summary.
+
+Example: If the summary is "The research found that coffee consumption reduces heart disease risk by 23% according to the longitudinal study", valid outputs could be:
+- {"hallucination_list": ["23%", "longitudinal study"]} ✓ (these are exact substrings)
+- {"hallucination_list": ["The research found that coffee consumption reduces heart disease risk by 23% according to the longitudinal study"]} ✗ (cannot mark the entire summary)
+- {"hallucination_list": ["25 percent", "multi-year research"]} ✗ (these are NOT in the original text)
+
+If there are potential hallucinations, output: {"hallucination_list": ["exact span 1", "exact span 2", ...]}
+If there are no hallucinations, output: {"hallucination_list": []}
+
+**After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**
