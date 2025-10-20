@@ -41,6 +41,7 @@ dependencies = [
     "openai>=1.46",
     "outlines[openai]>=1.0.7",
     "datasets>=4.2.0",
+    "transformers>=4.57.1",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +52,18 @@ dev = [
     "isort>=5.0",
     "ruff>=0.1",
     "mypy>=1.0",
+]
+
+gpu = [
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+    "torchaudio>=2.5.1",
+]
+
+cpu = [
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+    "torchaudio>=2.5.1",
 ]
 
 [project.scripts]
