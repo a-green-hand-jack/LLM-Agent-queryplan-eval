@@ -127,9 +127,9 @@ class PairwiseJudge:
                 continue
             
             # 跳过两者都失败的情况
-            if not row_a.get("ok", False) and not row_b.get("ok", False):
-                logger.debug(f"跳过 idx={idx}，两个候选都失败")
-                continue
+            # if not row_a.get("ok", False) and not row_b.get("ok", False):
+            #     logger.debug(f"跳过 idx={idx}，两个候选都失败")
+            #     continue
             
             pair = {
                 'idx': int(idx),

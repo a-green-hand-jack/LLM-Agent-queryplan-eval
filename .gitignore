@@ -77,3 +77,9 @@ dmypy.json
 
 # data
 **data/*
+
+# dcgm
+**dcgm/*
+
+# logs
+**/logs/*
