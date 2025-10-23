@@ -388,3 +388,54 @@ class RAGPromptManager:
             包含所有模板信息的字典
         """
         return self.config.get("templates", {})
+
+
+class PatentPromptManager:
+    """专利任务的 Prompt 管理器
+    
+    用于加载和管理肽段专利相关的 prompt，特别是专利风格线性肽表示的转换规则。
+    """
+    
+    def __init__(self, version: str = "v1"):
+        """初始化专利 Prompt Manager
+        
+        Args:
+            version: prompt 版本（如 "v1"）
+        """
+        self.version = version
+        self.prompts_root = Path(__file__).parent.parent / "prompts" / "patent"
+    
+    def load(self, **render_vars) -> str:
+        """加载专利 prompt
+        
+        Args:
+            **render_vars: 模板变量（暂未使用，预留扩展）
+            
+        Returns:
+            prompt 字符串
+        """
+        prompt_path = self._resolve_prompt_path()
+        logger.info(f"加载专利 prompt: {prompt_path}")
+        
+        # 读取 prompt 文件
+        text = prompt_path.read_text(encoding="utf-8")
+        return text
+    
+    def _resolve_prompt_path(self) -> Path:
+        """解析 prompt 文件路径
+        
+        Returns:
+            找到的 prompt 文件路径
+            
+        Raises:
+            FileNotFoundError: 如果找不到指定版本的 prompt
+        """
+        # 尝试查找指定版本的 prompt
+        for ext in [".j2", ".txt"]:
+            path = self.prompts_root / f"{self.version}{ext}"
+            if path.exists():
+                return path
+        
+        raise FileNotFoundError(
+            f"未找到专利 prompt: {self.prompts_root / self.version}"
+        )
