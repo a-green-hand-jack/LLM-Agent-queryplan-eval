@@ -90,10 +90,15 @@ class PeptideDataset:
         sequences = []
         for row in df["SEQUENCE"]:
             try:
-                # 将 JSON 字符串解析为 Python 字典
-                seq_dict = json.loads(row) if isinstance(row, str) else row
-                # 将字典转换为 JSON 字符串存储，避免 PyArrow 的类型不一致问题
-                sequences.append(json.dumps(seq_dict, ensure_ascii=False))
+                # 检查是否为 NaN 或空值
+                if pd.isna(row) or (isinstance(row, str) and row.strip() == ""):
+                    logger.warning("SEQUENCE 为空或 NaN，使用空字典")
+                    sequences.append(json.dumps({}, ensure_ascii=False))
+                else:
+                    # 将 JSON 字符串解析为 Python 字典
+                    seq_dict = json.loads(row) if isinstance(row, str) else row
+                    # 将字典转换为 JSON 字符串存储，避免 PyArrow 的类型不一致问题
+                    sequences.append(json.dumps(seq_dict, ensure_ascii=False))
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(
                     f"无法解析 SEQUENCE 字段: {str(row)[:100]}... "

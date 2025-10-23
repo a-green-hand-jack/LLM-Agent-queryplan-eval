@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..core.base_task import BaseTask
 from ..core.prompt_manager import PatentPromptManager
-from ..datasets.peptide_patent import PeptideDataset
+from ..datasets.peptide_patent import PeptideDataset, PeptideItem
 from ..schemas import PeptidePatentRepresentation
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class PeptideTask(BaseTask):
         logger.info(f"加载数据集: {len(dataset)} 个肽段样本")
         return dataset  # type: ignore[return-value]
     
-    def build_chat(self, item: Any) -> list[dict[str, str]]:
+    def build_chat(self, item: PeptideItem) -> list[dict[str, str]]:
         """构建 chat 消息
         
         Args:
@@ -62,11 +62,14 @@ class PeptideTask(BaseTask):
         prompt_manager = PatentPromptManager(version="v1")
         system_prompt = prompt_manager.load()
         
+        # 确保 sequence 是字典类型，处理异常情况
+        sequence = item.sequence if isinstance(item.sequence, dict) else {}
+        
         # 构建用户查询 payload - 包含肽段序列信息
         payload = json.dumps(
             {
-                "sequence": item.sequence.get("sequence", ""),
-                "features": item.sequence.get("features", [])
+                "sequence": sequence.get("sequence", ""),
+                "features": sequence.get("features", [])
             },
             ensure_ascii=False
         )
@@ -105,9 +108,12 @@ class PeptideTask(BaseTask):
         if ok and parsed is not None:
             representation = parsed.representation
         
+        # 确保 sequence 是字典类型
+        sequence = item.sequence if isinstance(item.sequence, dict) else {}
+        
         record = {
             "idx": item.idx,
-            "sequence": item.sequence.get("sequence", ""),
+            "sequence": sequence.get("sequence", ""),
             "raw_response": raw,
             "ok": ok,
             "representation": representation,
