@@ -40,7 +40,7 @@ class PeptideDataset:
     从 CSV 文件加载肽段专利数据，提供类似 HuggingFace Datasets
     的高级操作接口（如 map、filter 等），同时支持类型安全的数据访问。
     
-    SEQUENCE 列中的 JSON 字符串会被自动解析为 Python 字典，便于后续处理。
+    SEQUENCE 列中的 JSON 字符串会被解析为 Python 字典，便于后续处理。
     
     Example:
         >>> dataset = PeptideDataset("data/patents/US11111272B2.csv", n=50)
@@ -92,14 +92,15 @@ class PeptideDataset:
             try:
                 # 将 JSON 字符串解析为 Python 字典
                 seq_dict = json.loads(row) if isinstance(row, str) else row
-                sequences.append(seq_dict)
+                # 将字典转换为 JSON 字符串存储，避免 PyArrow 的类型不一致问题
+                sequences.append(json.dumps(seq_dict, ensure_ascii=False))
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(
                     f"无法解析 SEQUENCE 字段: {str(row)[:100]}... "
                     f"错误: {e}"
                 )
-                # 对于无法解析的行，使用空字典作为占位符
-                sequences.append({})
+                # 对于无法解析的行，使用空字典的 JSON 字符串
+                sequences.append(json.dumps({}, ensure_ascii=False))
 
         data_dicts = {
             "idx": list(range(len(df))),
@@ -120,7 +121,7 @@ class PeptideDataset:
             idx: 数据项的索引（0 到 len-1）
             
         Returns:
-            PeptideItem 对象，包含 idx 和 sequence 字段
+            PeptideItem 对象，包含 idx 和 sequence 字段（sequence 为字典）
             
         Raises:
             IndexError: 如果索引超出范围
@@ -129,7 +130,14 @@ class PeptideDataset:
             raise IndexError(f"索引 {idx} 超出范围 [0, {len(self) - 1}]")
 
         row = self._dataset[idx]
-        return PeptideItem(idx=row["idx"], sequence=row["sequence"])
+        # 解析 JSON 字符串回字典
+        try:
+            sequence_dict = json.loads(row["sequence"]) if isinstance(row["sequence"], str) else row["sequence"]
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(f"无法解析序列 {idx} 的 JSON 数据")
+            sequence_dict = {}
+        
+        return PeptideItem(idx=row["idx"], sequence=sequence_dict)
 
     def __iter__(self):
         """迭代数据集中的所有项
