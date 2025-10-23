@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from datasets import Dataset
+from pathlib import Path
 
 from ..core.base_task import BaseTask
 from ..core.prompt_manager import PatentPromptManager
@@ -178,3 +179,34 @@ class PeptideTask(BaseTask):
             if metrics["latency_p95"] is not None:
                 f.write(f"P95 延迟: {metrics['latency_p95']:.3f}s\n")
         logger.info(f"摘要已保存: {summary_path}")
+        
+        # 添加注释后的肽段表示到原始 CSV
+        self._add_annotations_to_input(results)
+    
+    def _add_annotations_to_input(self, results: List[Dict]) -> None:
+        """将解析后的肽段表示添加到原始输入 CSV
+        
+        Args:
+            results: 所有结果记录列表
+        """
+        try:
+            # 读取原始 CSV 文件
+            input_df = pd.read_csv(self.data_path)
+            logger.info(f"读取原始输入文件: {self.data_path}")
+            
+            # 创建结果的查找字典（idx -> representation）
+            result_dict = {result["idx"]: result["representation"] for result in results}
+            
+            # 添加新列 "annotated_peptide_notation"
+            input_df["annotated_peptide_notation"] = input_df.index.map(
+                lambda idx: result_dict.get(idx, None)
+            )
+            
+            # 保存带注释的输出 CSV
+            output_csv_path = self.output_dir / f"{Path(self.data_path).stem}_annotated.csv"
+            input_df.to_csv(output_csv_path, index=False, encoding='utf-8')
+            logger.info(f"带注释的输入已保存: {output_csv_path}")
+            
+        except Exception as e:
+            logger.error(f"添加注释时出错: {e}")
+            logger.error("继续保存其他结果...")
