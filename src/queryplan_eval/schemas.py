@@ -257,3 +257,55 @@ def normalize_hallucination_result(obj: HallucinationResult, include_reasoning: 
         result["reasoning"] = obj.reasoning.model_dump()
     
     return result
+
+
+class ModificationFeature(BaseModel):
+    """修饰特征条目，表示肽序列中特定位置的氨基酸修饰
+    
+    属性：
+        name_key: 特征类型标识，如 "MOD_RES" 表示残基修饰
+        location: 位置信息字符串，格式为 "(n).. (n)" 或 "(n) (n)"，其中 n 为残基位置
+        other_information: 修饰残基的具体名称，如 "Pen", "N-Me-Arg", "D-Lys" 等
+    """
+    name_key: str = Field(
+        description="特征类型标识，通常为 'MOD_RES' 表示残基修饰"
+    )
+    location: str = Field(
+        description="位置信息，格式如 '(n).. (n)' 或 '(n) (n)'，其中 n 为整数索引"
+    )
+    other_information: str = Field(
+        description="修饰残基的名称，如 Pen、N-Me-Arg、Beta-Glu、D-Lys 等"
+    )
+
+
+class PeptideSequenceInput(BaseModel):
+    """输入肽序列数据
+    
+    表示一个人工合成肽的序列信息及其修饰特征。
+    
+    属性：
+        sequence: 由空格分隔的标准或非标准三字母残基代码
+        features: 特征列表，包含残基修饰等信息
+    """
+    sequence: str = Field(
+        description="由空格分隔的三字母氨基酸残基代码，如 'Ala Ser Lys'"
+    )
+    features: List[ModificationFeature] = Field(
+        default_factory=list,
+        description="修饰特征列表，其中 name_key='MOD_RES' 的条目表示残基修饰"
+    )
+
+
+class PeptidePatentRepresentation(BaseModel):
+    """肽序列的专利风格线性表示
+    
+    按照专利规范规则格式化的肽序列单行表示。
+    
+    属性：
+        representation: 规范化后的肽序列字符串，残基用连字符 '-' 连接。
+                        修饰残基根据类型使用括号包围（如 (N-Me-Arg)），
+                        标准 L-氨基酸直接输出（如 Ala），无括号。
+    """
+    representation: str = Field(
+        description="按规则格式化后的肽序列，残基用 '-' 连接，不含句号或其他标点"
+    )
