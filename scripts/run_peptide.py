@@ -19,7 +19,7 @@ import os
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from queryplan_eval.llms import OpenAILLM, HuggingFaceLLM
+from queryplan_eval.llms import OpenAILLM #, HuggingFaceLLM
 from queryplan_eval.core.prompt_manager import PatentPromptManager
 from queryplan_eval.tasks import PeptideTask
 
@@ -74,13 +74,14 @@ def main():
     args = parser.parse_args()
     
     # 加载环境变量
-    load_dotenv()
+    env_path = Path(__file__).parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
     
     # 初始化 LLM
     logger.info(f"初始化 LLM: {args.llm_type}")
     if args.llm_type == "openai":
-        api_key = os.getenv("OPENAI_API_KEY")
-        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        api_key = os.getenv("qwen_key") or os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         if not api_key:
             raise ValueError("OPENAI_API_KEY 环境变量未设置")
         llm = OpenAILLM(
@@ -89,7 +90,8 @@ def main():
             api_key=api_key
         )
     else:
-        llm = HuggingFaceLLM(model_name=args.model_name)
+        # llm = HuggingFaceLLM(model_name=args.model_name)
+        raise ValueError(f"不支持的 LLM 类型: {args.llm_type}")
     
     # 初始化 Prompt Manager
     prompt_manager = PatentPromptManager(version="v1")
