@@ -55,8 +55,8 @@ def main():
     parser.add_argument(
         "--model-name",
         type=str,
-        default=None,
-        help="LLM 模型名称（如 gpt-4o, qwen-max 等）"
+        default="qwen3-max",
+        help="LLM 模型名称（如 gpt-4o, qwen3-max 等）"
     )
     parser.add_argument(
         "--temperature",
@@ -93,8 +93,8 @@ def main():
         # llm = HuggingFaceLLM(model_name=args.model_name)
         raise ValueError(f"不支持的 LLM 类型: {args.llm_type}")
     
-    # 初始化 Prompt Manager
-    prompt_manager = PatentPromptManager(version="v1")
+    # 初始化 Prompt Manager（切换到 v2）
+    prompt_manager = PatentPromptManager(version="v2")
     
     # 初始化任务
     logger.info(f"初始化肽段任务，数据文件: {args.data}")

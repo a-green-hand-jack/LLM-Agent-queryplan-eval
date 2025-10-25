@@ -58,9 +58,12 @@ class PeptideTask(BaseTask):
         Returns:
             chat 消息列表
         """
-        # 加载专利 prompt
-        prompt_manager = PatentPromptManager(version="v1")
-        system_prompt = prompt_manager.load()
+        # 加载专利 prompt（优先使用注入的 prompt_manager；否则回退到 v2）
+        if isinstance(self.prompt_manager, PatentPromptManager):
+            system_prompt = self.prompt_manager.load()
+        else:
+            # 回退使用 v2 提示
+            system_prompt = PatentPromptManager(version="v2").load()
         
         # 确保 sequence 是字典类型，处理异常情况
         sequence = item.sequence if isinstance(item.sequence, dict) else {}
