@@ -45,7 +45,7 @@ def download_model(model_name: str, download_only: bool = False) -> bool:
             # 仅下载模型权重，不加载到内存
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                torch_dtype="auto",
+                dtype="auto",
                 device_map=None,  # 不自动分配设备
                 low_cpu_mem_usage=True
             )

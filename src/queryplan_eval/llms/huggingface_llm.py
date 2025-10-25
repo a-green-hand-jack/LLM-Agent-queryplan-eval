@@ -54,7 +54,7 @@ class HuggingFaceLLM(BaseLLM):
             hf_model = transformers.AutoModelForCausalLM.from_pretrained(
                 model_name,
                 trust_remote_code=True,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                dtype=torch.float16 if self.device == "cuda" else torch.float32,
                 device_map="cpu"  # 先加载到 CPU
             )
             

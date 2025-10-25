@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=1021-prompt-compare
-#SBATCH --output=logs/1021_compare_%j.out
-#SBATCH --error=logs/1021_compare_%j.err
+#SBATCH --job-name=1023-prompt-compare
+#SBATCH --output=logs/1023_compare_%j.out
+#SBATCH --error=logs/1023_compare_%j.err
 #SBATCH --time=12:00:00
 #SBATCH --gres=gpu:v100:1
 #SBATCH --cpus-per-task=8
@@ -12,7 +12,7 @@ export HF_HOME=/ibex/user/wuj0c/cache/HF
 export CUDA_VISIBLE_DEVICES=0
 
 echo "=========================================="
-echo "Prompt 版本对比评估 (1021 实验)"
+echo "Prompt 版本对比评估 (1023 实验)"
 echo "=========================================="
 echo "开始时间: $(date)"
 echo "HF_HOME: $HF_HOME"
@@ -22,20 +22,21 @@ echo "=========================================="
 # 进入项目目录
 cd /ibex/user/wuj0c/Projects/LLM/Safety/LLM-Agent-queryplan-eval
 
+OUTPUT_DIR="outputs/1023/test_local_14b"
 # 创建必要的目录
 mkdir -p logs
-mkdir -p outputs/1021/original
-mkdir -p outputs/1021/v6_cot
-mkdir -p outputs/1021/compare
+mkdir -p ${OUTPUT_DIR}/original
+mkdir -p ${OUTPUT_DIR}/v6_cot
+mkdir -p ${OUTPUT_DIR}/compare
 
 # 设置数据文件和参数
 DATA_FILE="data/summary_train_v3.xlsx"  # 根据实际情况调整
 SAMPLE_N=100
 DEVICE="cuda"
-# MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
-# LLM_TYPE="local"
-MODEL_NAME="qwen-flash"
-LLM_TYPE="openai"
+MODEL_NAME="Qwen/Qwen2.5-14B-Instruct"
+LLM_TYPE="local"
+# MODEL_NAME="qwen-flash"
+# LLM_TYPE="openai"
 
 echo ""
 echo "步骤 1: 运行 original 版本评估..."
@@ -47,7 +48,7 @@ uv run python scripts/run_eval.py \
   --device "$DEVICE" \
   -n $SAMPLE_N \
   --prompt-version original \
-  --outdir outputs/1021/original
+  --outdir ${OUTPUT_DIR}/original
 
 if [ $? -ne 0 ]; then
     echo "❌ Original 版本评估失败"
@@ -65,7 +66,7 @@ uv run python scripts/run_eval.py \
   --device "$DEVICE" \
   -n $SAMPLE_N \
   --prompt-version v6_cot \
-  --outdir outputs/1021/v6_cot
+  --outdir ${OUTPUT_DIR}/v6_cot
 
 if [ $? -ne 0 ]; then
     echo "❌ v6_cot 版本评估失败"
@@ -78,8 +79,8 @@ echo "步骤 3: 进行 LLM 对比判别..."
 echo "=========================================="
 
 # 找到结果文件
-RESULTS_A="outputs/1021/original/eval_results.csv"
-RESULTS_B="outputs/1021/v6_cot/eval_results.csv"
+RESULTS_A="${OUTPUT_DIR}/original/eval_results.csv"
+RESULTS_B="${OUTPUT_DIR}/v6_cot/eval_results.csv"
 
 # 检查结果文件是否存在
 if [ ! -f "$RESULTS_A" ]; then
@@ -94,13 +95,13 @@ fi
 
 echo "Original 结果文件: $RESULTS_A"
 echo "v6_cot 结果文件: $RESULTS_B"
-echo "对比结果输出目录: outputs/1021/compare"
+echo "对比结果输出目录: ${OUTPUT_DIR}/compare"
 echo ""
 
 uv run python scripts/llm_judge.py \
   "$RESULTS_A" \
   "$RESULTS_B" \
-  --outdir outputs/1021/compare
+  --outdir ${OUTPUT_DIR}/compare
 
 if [ $? -ne 0 ]; then
     echo "❌ LLM 对比判别失败"
@@ -114,8 +115,8 @@ echo "所有任务完成: $(date)"
 echo "=========================================="
 echo ""
 echo "📊 结果统计："
-echo "  Original 结果: outputs/1021/original/"
-echo "  v6_cot 结果: outputs/1021/v6_cot/"
-echo "  对比结果: outputs/1021/compare/"
+echo "  Original 结果: ${OUTPUT_DIR}/original/"
+echo "  v6_cot 结果: ${OUTPUT_DIR}/v6_cot/"
+echo "  对比结果: ${OUTPUT_DIR}/compare/"
 echo ""
 echo "=========================================="
