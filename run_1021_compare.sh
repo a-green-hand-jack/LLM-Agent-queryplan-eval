@@ -21,7 +21,7 @@ echo "=========================================="
 
 # 进入项目目录
 cd /ibex/user/wuj0c/Projects/LLM/Safety/LLM-Agent-queryplan-eval
-
+source .venv/bin/activate
 OUTPUT_DIR="outputs/1023/test_local_14b"
 # 创建必要的目录
 mkdir -p logs
