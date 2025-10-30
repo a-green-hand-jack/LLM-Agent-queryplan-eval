@@ -97,13 +97,22 @@ class HuggingFaceLLM(BaseLLM):
             
             # 构建 chat 消息为提示文本
             prompt = self._format_chat_to_prompt(chat)
-            
+
             # 生成结构化输出
-            result = generator(
-                prompt,
-                max_new_tokens=1024,
-                temperature=temperature
-            )
+            # 当 temperature=0 时使用贪婪解码，否则使用采样
+            if temperature == 0.0 or temperature is None:
+                result = generator(
+                    prompt,
+                    max_new_tokens=1024,
+                    do_sample=False
+                )
+            else:
+                result = generator(
+                    prompt,
+                    max_new_tokens=1024,
+                    temperature=temperature,
+                    do_sample=True
+                )
             dt = time.time() - t0
             
             # 处理结果（与 OpenAI 完全一致的逻辑）
