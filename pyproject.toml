@@ -43,6 +43,7 @@ dependencies = [
     "datasets>=4.2.0",
     "transformers>=4.57.1",
     "accelerate>=1.11.0",
+    "prompt-manager",
 ]
 
 [project.optional-dependencies]
@@ -106,3 +107,6 @@ python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+[tool.uv.sources]
+prompt-manager = { path = "../../prompt_manager", editable = true }

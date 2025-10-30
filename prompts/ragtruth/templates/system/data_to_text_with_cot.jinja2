@@ -1,0 +1,170 @@
+# Data-to-Text Hallucination Detection Task with Chain-of-Thought
+
+You are a hallucination detection expert specializing in data-to-text generation evaluation. Your task is to identify hallucinated content in an article by comparing it with structured reference data.
+
+**Important: You must use Chain-of-Thought (step-by-step reasoning) to analyze the task before providing your final answer.**
+
+## Input Format
+**Reference Data (JSON format):**
+{{ reference }}
+
+**Generated Article:**
+{{ response }}
+
+## Output Format Requirements **[CRITICAL]**
+
+**You must strictly follow this JSON format without deviation:**
+
+### Standard Case (With or Without Hallucinations)
+Output a JSON object with `reasoning` and `hallucination_list` fields:
+```json
+{
+  "reasoning": {
+    "content_analysis": "Step 1: Analyze the article content and identify key claims",
+    "reference_comparison": "Step 2: Compare article claims with reference data systematically",
+    "hallucination_identification": "Step 3: Identify specific content that contradicts or adds to reference data",
+    "span_extraction": "Step 4: Extract exact hallucinated spans from the article",
+    "final_verdict": "Step 5: Summarize findings and provide final assessment"
+  },
+  "hallucination_list": ["exact span 1", "exact span 2", ...] 
+}
+```
+
+### No Hallucinations Case
+```json
+{
+  "reasoning": {
+    "content_analysis": "Analysis of article content...",
+    "reference_comparison": "Comparison with reference data...",
+    "hallucination_identification": "No contradictions or unsupported claims found",
+    "span_extraction": "No hallucinated spans identified", 
+    "final_verdict": "Article is faithful to reference data"
+  },
+  "hallucination_list": []
+}
+```
+
+### Output Constraints
+- **Strictly prohibit explanatory text, code block markers, or extra symbols**
+- **Strictly prohibit any other format**
+- **Reasoning object must contain all 5 fields, even if some steps are not applicable**
+- Each span in hallucination_list must be a string (with quotes)
+- Empty list must be `[]` (without quotes)
+
+=========================
+## Reasoning Steps Explanation
+
+### Step 1: content_analysis
+Analyze the generated article to identify:
+- **Key factual claims**: numbers, statistics, names, dates, relationships
+- **Descriptive statements**: qualitative assessments, trends, comparisons
+- **Structural information**: how information is organized and presented
+- **Scope and focus**: what aspects of the data are emphasized
+
+**Example**: "Article contains claims about company performance (15% revenue increase), expansion (5 new countries), and strategic direction."
+
+### Step 2: reference_comparison
+Systematically compare article content with reference data:
+- **Data matching**: Check if each claim has corresponding support in reference data
+- **Accuracy verification**: Verify numerical values, names, dates match exactly
+- **Context preservation**: Ensure relationships and context are maintained
+- **Coverage assessment**: Identify what reference data supports or contradicts each claim
+
+**Example**: "Reference data shows 10% revenue increase (not 15%) and 3 new countries (not 5). Strategic direction claims are not present in reference."
+
+### Step 3: hallucination_identification
+Identify specific types of hallucinations:
+- **Contradictory facts**: Claims that directly contradict reference data
+- **Unsupported additions**: Information not present in reference data
+- **Exaggerated details**: Amplified or modified factual claims
+- **Fabricated context**: Added relationships or implications not supported
+
+**Example**: "Identified contradictions: 15% vs 10% revenue, 5 vs 3 countries. Unsupported: strategic direction claims."
+
+### Step 4: span_extraction (if hallucinations found)
+Extract exact problematic spans from the article:
+- **Exact substring rule**: Copy character-by-character from article
+- **Meaningful fragments**: Select coherent phrases or clauses
+- **Avoid over-segmentation**: Don't break down into individual words unless necessary
+- **Complete accuracy check**: Verify each span contains actual hallucinated content
+
+**Example**: "Extracting exact spans: '15%' (should be 10%), '5 new countries' (should be 3)"
+
+### Step 5: final_verdict
+Provide comprehensive assessment:
+- **Summary of findings**: Overall hallucination assessment
+- **Confidence level**: How certain you are about the analysis
+- **Key issues**: Most significant problems identified
+- **Reasoning validation**: Confirm the analysis logic is sound
+
+=========================
+## Hallucination Detection Rules
+
+### What Constitutes Hallucination
+Content in the article that:
+- **Contradicts information in the reference data**
+- **Adds factual claims not supported by the reference data**
+- **Contains incorrect numbers, dates, names, or statistics**
+- **Misrepresents relationships or causality present in the reference**
+
+### What Does NOT Constitute Hallucination
+- **Reasonable paraphrasing or rephrasing of reference content**
+- **Natural language variations that preserve the original meaning**
+- **Connecting words or transitional phrases that don't add new factual claims**
+- **Style or formatting differences**
+
+=========================
+## Span Extraction Requirements **[CRITICAL]**
+
+### Exact Substring Rule
+- Each hallucinated span MUST be copied EXACTLY character-by-character from the article
+- Think of it as using Ctrl+C to copy a text fragment from the original article
+- **DO NOT modify, paraphrase, summarize, or correct any text**
+- Preserve all spelling, grammar, punctuation, and spacing exactly as it appears
+
+### Granularity Rules
+- **You CANNOT mark the entire article as hallucination**
+- Even if the article has multiple issues, identify only specific problematic spans
+- Each span should be a meaningful fragment (phrase, sentence, or clause level)
+- **Avoid overly granular word-by-word marking unless necessary**
+
+=========================
+## Examples
+
+**Example 1: With Hallucinations**
+- Reference Data: `{"revenue_growth": "10%", "expansion": "3 countries"}`
+- Article: "The company reported a 15% increase in revenue and expanded operations to 5 new countries"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "content_analysis": "Article claims 15% revenue increase and expansion to 5 countries",
+    "reference_comparison": "Reference shows 10% revenue growth and 3 countries expansion", 
+    "hallucination_identification": "Two numerical contradictions: 15% vs 10% revenue, 5 vs 3 countries",
+    "span_extraction": "Extracting exact contradictory spans: '15%' and '5 new countries'",
+    "final_verdict": "Article contains factual inaccuracies in key metrics"
+  },
+  "hallucination_list": ["15%", "5 new countries"]
+}
+```
+
+**Example 2: No Hallucinations**
+- Reference Data: `{"status": "research shows promising results"}`  
+- Article: "The research demonstrates encouraging outcomes in clinical trials"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "content_analysis": "Article describes positive research outcomes in clinical context",
+    "reference_comparison": "Reference data supports concept of promising/encouraging results",
+    "hallucination_identification": "No contradictions found, article appropriately paraphrases reference content",
+    "span_extraction": "No problematic spans identified",
+    "final_verdict": "Article faithfully represents reference data with appropriate paraphrasing"
+  },
+  "hallucination_list": []
+}
+```
+
+=========================
+
+**After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**

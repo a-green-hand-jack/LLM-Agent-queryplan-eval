@@ -1,0 +1,120 @@
+metadata:
+  name: ragtruth
+  description: "RAGTruth 幻觉检测任务 - 基于论文附录A.1的原始prompt"
+  author: "Jieke Wu, SFB Lab, KAUST"
+  current_version: "with_cot"
+  tags: ["ragtruth", "hallucination-detection", "summarization", "qa", "data-to-text"]
+  notes: |
+    该配置用于 RAGTruth 论文中的幻觉检测任务。
+    支持三种任务类型：
+    - Summary: 摘要任务
+    - QA: 问答任务
+    - Data2txt: 数据转文本任务
+
+    每种任务类型支持两种推理模式：
+    - with_cot: 使用 Chain-of-Thought 推理
+    - without_cot: 不使用推理
+
+parameters:
+  task_type:
+    type: str
+    required: true
+    default: null
+    description: "任务类型，必须是 'Summary', 'QA', 'Data2txt' 之一"
+    enum: ["Summary", "QA", "Data2txt"]
+
+  use_cot:
+    type: bool
+    required: false
+    default: true
+    description: "是否使用 Chain-of-Thought 推理"
+
+  reference:
+    type: str
+    required: true
+    default: null
+    description: |
+      参考内容（根据任务类型不同有不同含义）：
+      - Summary: 原始完整文档
+      - QA: 相关段落（参考资料）
+      - Data2txt: JSON 格式的结构化数据
+
+  response:
+    type: str
+    required: true
+    default: null
+    description: |
+      模型生成的回复：
+      - Summary: 生成的摘要
+      - QA: 生成的答案
+      - Data2txt: 基于数据生成的文章
+
+  question:
+    type: str
+    required: false
+    default: null
+    description: "用户提出的问题（仅 QA 任务需要）"
+
+llm_config:
+  model: "gpt-4"
+  temperature: 0.7
+  max_tokens: 2000
+  response_format:
+    type: "json_object"
+
+template_mapping:
+  summarization_with_cot:
+    system: "ragtruth/summarization_with_cot.jinja2"
+    user: null
+    description: "摘要任务 + Chain-of-Thought 推理"
+    task_type: "Summary"
+    use_cot: true
+
+  summarization_without_cot:
+    system: "ragtruth/summarization_without_cot.jinja2"
+    user: null
+    description: "摘要任务（无推理）"
+    task_type: "Summary"
+    use_cot: false
+
+  qa_with_cot:
+    system: "ragtruth/qa_with_cot.jinja2"
+    user: null
+    description: "问答任务 + Chain-of-Thought 推理"
+    task_type: "QA"
+    use_cot: true
+
+  qa_without_cot:
+    system: "ragtruth/qa_without_cot.jinja2"
+    user: null
+    description: "问答任务（无推理）"
+    task_type: "QA"
+    use_cot: false
+
+  data_to_text_with_cot:
+    system: "ragtruth/data_to_text_with_cot.jinja2"
+    user: null
+    description: "数据转文本任务 + Chain-of-Thought 推理"
+    task_type: "Data2txt"
+    use_cot: true
+
+  data_to_text_without_cot:
+    system: "ragtruth/data_to_text_without_cot.jinja2"
+    user: null
+    description: "数据转文本任务（无推理）"
+    task_type: "Data2txt"
+    use_cot: false
+
+output_schema:
+  type: "json"
+  format: |
+    {
+      "hallucination_list": ["span1", "span2", ...]
+    }
+  notes: "如果没有幻觉则返回空列表: {\"hallucination_list\": []}"
+
+validation_rules:
+  - "task_type 必须是 'Summary', 'QA', 'Data2txt' 之一"
+  - "所有任务必须提供 reference 和 response"
+  - "QA 任务必须提供 question 参数"
+  - "Summary 和 Data2txt 任务不需要 question 参数"

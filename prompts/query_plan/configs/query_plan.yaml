@@ -1,0 +1,117 @@
+metadata:
+  name: query_plan
+  description: "运动健康领域的查询计划提取任务"
+  author: "Jieke Wu, SFB Lab, KAUST"
+  current_version: "v6_cot"
+  tags: ["query-plan", "health", "sports", "parameter-extraction"]
+  notes: |
+    该配置用于从用户问题和历史对话记录中提取结构化的查询计划参数。
+    支持多个版本：
+    - v5: 基础版本，根据 Qwen3 LLM 判别反馈优化
+    - v6_cot: 添加 Chain-of-Thought 推理能力
+    - original: 原始版本
+
+    plan_data 子任务支持：
+    - single_v1: 单数据源模式
+    - single_think_v1: 单数据源 + 思维链
+    - multi_v1: 多数据源模式
+    - multi_think_v1: 多数据源 + 思维链
+
+parameters:
+  today:
+    type: str
+    required: true
+    default: null
+    description: "当前日期，格式如 '2025年02月05日'，用于锚定相对时间计算"
+
+  domains:
+    type: dict
+    required: false
+    default: null
+    description: "自定义 domain 枚举，可覆盖默认值"
+
+  subs_map:
+    type: dict
+    required: false
+    default: null
+    description: "自定义 sub 枚举映射，可覆盖默认值"
+
+  # plan_data 子任务专用参数
+  data_source:
+    type: str
+    required: false
+    default: null
+    description: "数据源名称（用于 plan_data 子任务）"
+
+  available_fields:
+    type: list
+    required: false
+    default: null
+    description: "可用的数据字段列表（用于 plan_data 子任务）"
+
+  example_data:
+    type: dict
+    required: false
+    default: null
+    description: "示例数据（用于 plan_data 子任务）"
+
+llm_config:
+  model: "gpt-4"
+  temperature: 0.7
+  max_tokens: 2000
+  response_format:
+    type: "json_object"
+
+template_mapping:
+  v5:
+    system: "query_plan/v5.jinja2"
+    user: null
+    description: "基础版本，根据 Qwen3 LLM 判别反馈优化"
+
+  v6_cot:
+    system: "query_plan/v6_cot.jinja2"
+    user: null
+    description: "添加 Chain-of-Thought 推理能力"
+
+  original:
+    system: "query_plan/original.jinja2"
+    user: null
+    description: "原始版本"
+
+  # plan_data 子任务版本
+  plan_data_single_v1:
+    system: "query_plan/plan_data_single_v1.jinja2"
+    user: null
+    description: "Plan Data 单数据源模式"
+
+  plan_data_single_think_v1:
+    system: "query_plan/plan_data_single_think_v1.jinja2"
+    user: null
+    description: "Plan Data 单数据源 + 思维链"
+
+  plan_data_multi_v1:
+    system: "query_plan/plan_data_multi_v1.jinja2"
+    user: null
+    description: "Plan Data 多数据源模式"
+
+  plan_data_multi_think_v1:
+    system: "query_plan/plan_data_multi_think_v1.jinja2"
+    user: null
+    description: "Plan Data 多数据源 + 思维链"
+
+output_schema:
+  type: "json"
+  format: |
+    {
+      "plans": [
+        {
+          "domain": <string>,
+          "sub": <string|null>,
+          "is_personal": <bool>,
+          "time": <string|null>,
+          "food": <string|null>
+        }
+      ],
+      "refused": <bool>,
+      "refuse_reason": <string>
+    }

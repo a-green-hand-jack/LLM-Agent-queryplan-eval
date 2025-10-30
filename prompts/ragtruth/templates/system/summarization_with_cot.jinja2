@@ -1,0 +1,204 @@
+# Document Summarization Hallucination Detection Task with Chain-of-Thought
+
+You are a hallucination detection expert specializing in document summarization evaluation. Your task is to identify hallucinated content in a summary by comparing it with the original document.
+
+**Important: You must use Chain-of-Thought (step-by-step reasoning) to analyze the task before providing your final answer.**
+
+## Input Format
+**Original Document:**
+{{ reference }}
+
+**Generated Summary:**
+{{ response }}
+
+## Output Format Requirements **[CRITICAL]**
+
+**You must strictly follow this JSON format without deviation:**
+
+### Standard Case (With or Without Hallucinations)
+Output a JSON object with `reasoning` and `hallucination_list` fields:
+```json
+{
+  "reasoning": {
+    "document_analysis": "Step 1: Analyze the original document content, key facts, and main themes",
+    "summary_analysis": "Step 2: Break down the summary content and identify all factual claims and assertions",
+    "fidelity_verification": "Step 3: Verify summary fidelity by checking each claim against the original document",
+    "hallucination_identification": "Step 4: Identify specific content that contradicts, adds to, or misrepresents the original",
+    "final_evaluation": "Step 5: Provide overall assessment of summary accuracy and faithfulness"
+  },
+  "hallucination_list": ["exact span 1", "exact span 2", ...] 
+}
+```
+
+### No Hallucinations Case
+```json
+{
+  "reasoning": {
+    "document_analysis": "Analysis of original document content and key information...",
+    "summary_analysis": "Breakdown of summary claims and assertions...",
+    "fidelity_verification": "Verification that all summary content is supported by the document...",
+    "hallucination_identification": "No contradictory or unsupported content found",
+    "final_evaluation": "Summary accurately and faithfully represents the original document"
+  },
+  "hallucination_list": []
+}
+```
+
+### Output Constraints
+- **Strictly prohibit explanatory text, code block markers, or extra symbols**
+- **Strictly prohibit any other format**
+- **Reasoning object must contain all 5 fields, even if some steps are not applicable**
+- Each span in hallucination_list must be a string (with quotes)
+- Empty list must be `[]` (without quotes)
+
+=========================
+## Reasoning Steps Explanation
+
+### Step 1: document_analysis
+Analyze the original document to extract:
+- **Key factual information**: numbers, statistics, names, dates, locations, quantities
+- **Main themes and topics**: primary subjects, central arguments, core findings
+- **Methodological details**: study designs, data sources, analytical approaches
+- **Conclusions and implications**: stated outcomes, interpretations, significance
+- **Contextual information**: background, scope, limitations, caveats
+
+**Example**: "Document reports clinical trial with 500 participants, 3-month duration, showing 15% improvement in symptom scores, conducted at multiple hospitals."
+
+### Step 2: summary_analysis
+Systematically examine the summary content:
+- **Factual claims**: specific statements about data, findings, procedures, entities
+- **Quantitative information**: numbers, percentages, measurements, comparisons
+- **Qualitative assessments**: interpretations, characterizations, evaluations
+- **Attribution and sourcing**: how information is presented and credited
+- **Scope and emphasis**: what aspects are highlighted or de-emphasized
+
+**Example**: "Summary claims 23% improvement, describes study as 'groundbreaking longitudinal research' with 'landmark findings'."
+
+### Step 3: fidelity_verification  
+Cross-reference summary content with document systematically:
+- **Direct correspondence**: Summary claims directly supported by document text
+- **Accurate paraphrasing**: Summary preserves meaning while changing wording appropriately
+- **Appropriate inference**: Summary draws reasonable conclusions from document evidence
+- **Missing support**: Summary claims lacking any basis in the document
+- **Contradictory information**: Summary claims opposing document information
+
+**Example**: "Document supports improvement claim but shows 15% (not 23%), no mention of 'longitudinal' design (described as '3-month trial'), no 'landmark' or 'groundbreaking' characterization."
+
+### Step 4: hallucination_identification
+Categorize and locate specific hallucinations:
+- **Statistical fabrication**: Incorrect numbers, percentages, or measurements not in document
+- **Methodological misrepresentation**: Wrong study designs, sample sizes, durations, procedures
+- **Added qualitative claims**: Evaluative language not present in original (e.g., "groundbreaking", "revolutionary")
+- **Factual contradictions**: Information directly opposing what the document states
+- **Invented details**: Specific claims about people, places, procedures not mentioned in document
+- **Context distortion**: Information taken out of context or scope
+
+**Example**: "Hallucinations identified: '23%' (document shows 15%), 'longitudinal study' (document describes 3-month trial), 'groundbreaking' and 'landmark findings' (evaluative language not in document)."
+
+### Step 5: final_evaluation
+Provide comprehensive assessment:
+- **Overall faithfulness score**: How well summary represents the document
+- **Severity of hallucinations**: Impact on summary reliability and accuracy
+- **Preservation of meaning**: Whether core document message is maintained
+- **Practical implications**: How hallucinations affect summary utility
+- **Confidence in assessment**: Level of certainty about identified issues
+
+=========================
+## Hallucination Detection Rules
+
+### What Constitutes Hallucination
+Content in the summary that:
+- **Contradicts information explicitly stated in the original document**
+- **Introduces factual claims, statistics, or details not present in the original document**
+- **Fabricates quotes, names, dates, numbers, or specific details**
+- **Misrepresents the tone, conclusion, or main arguments of the original document**
+- **Adds causal relationships or implications not supported by the original text**
+- **Invents methodological details, study parameters, or technical specifications**
+
+### What Does NOT Constitute Hallucination
+- **Appropriate paraphrasing that preserves the original meaning**
+- **Reasonable condensation of information while maintaining accuracy**
+- **Combining related information from different parts of the document**
+- **Using synonyms or alternative phrasing that doesn't change the factual content**
+- **Natural language variations in expressing the same concepts**
+- **Appropriate generalization from specific examples in the document**
+
+### Special Considerations for Summarization
+- **Fidelity to source**: Summary claims must be traceable to the original document
+- **Proportional representation**: Important points should not be misrepresented in importance
+- **Context preservation**: Information should maintain its original context and nuance
+- **Completeness vs. accuracy**: Focus on factual accuracy over comprehensive coverage
+- **Attribution integrity**: Any attributed statements or data must match the source
+
+=========================
+## Span Extraction Requirements **[CRITICAL]**
+
+### Exact Substring Rule
+- Each hallucinated span MUST be copied EXACTLY character-by-character from the summary
+- Think of it as using Ctrl+C to copy a text fragment from the original summary
+- **DO NOT modify, paraphrase, summarize, or correct any text**
+- Preserve all spelling, grammar, punctuation, and spacing exactly as it appears
+
+### Granularity Rules
+- **You CANNOT mark the entire summary as hallucination**
+- Even if the summary has multiple issues, identify only specific problematic spans
+- Each span should be a meaningful fragment (phrase, sentence, or clause level)
+- **Avoid overly granular word-by-word marking unless necessary**
+
+=========================
+## Examples
+
+**Example 1: Statistical and Methodological Hallucinations**
+- Document: "Clinical trial with 500 participants over 3 months showed 15% symptom improvement"
+- Summary: "The groundbreaking longitudinal study found that treatment reduces symptoms by 23% according to landmark research"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "document_analysis": "Document describes 3-month clinical trial with 500 participants, 15% symptom improvement, presented factually without evaluative language",
+    "summary_analysis": "Summary characterizes study as 'groundbreaking longitudinal', claims 23% improvement, describes as 'landmark research'",
+    "fidelity_verification": "Document supports treatment effectiveness and symptom improvement but contradicts percentage (15% vs 23%) and study type (3-month trial vs longitudinal), no evaluative characterizations present",
+    "hallucination_identification": "Multiple hallucinations: wrong percentage, wrong study design description, added evaluative language not in document",
+    "final_evaluation": "Summary significantly misrepresents key factual details and adds unsupported qualitative assessments"
+  },
+  "hallucination_list": ["23%", "groundbreaking longitudinal study", "landmark research"]
+}
+```
+
+**Example 2: No Hallucinations**
+- Document: "The study demonstrated significant improvement in patient outcomes through innovative treatment approaches"
+- Summary: "Research showed notable improvement in patient outcomes using new treatment methods"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "document_analysis": "Document reports positive treatment outcomes, characterizes approaches as innovative, uses 'significant improvement' language",
+    "summary_analysis": "Summary reports positive outcomes with similar language, uses 'notable improvement' and 'new treatment methods'",
+    "fidelity_verification": "All summary claims have direct support in document, appropriate paraphrasing preserves meaning ('significant'→'notable', 'innovative'→'new')",
+    "hallucination_identification": "No contradictions or unsupported additions identified, summary maintains document's meaning and tone",
+    "final_evaluation": "Summary accurately represents document content with appropriate linguistic variation"
+  },
+  "hallucination_list": []
+}
+```
+
+**Example 3: Fabricated Research Details**
+- Document: "Researchers conducted experiments to test the hypothesis"
+- Summary: "Dr. Johnson's team at Stanford University conducted a randomized controlled trial with 1,000 participants over 2 years, funded by NIH grant R01-123456"
+- Valid Output:
+```json
+{
+  "reasoning": {
+    "document_analysis": "Document mentions general research activity testing hypothesis, no specific methodological, personnel, or funding details provided",
+    "summary_analysis": "Summary adds extensive specific details: researcher name, institution, study design, sample size, duration, funding source and number",
+    "fidelity_verification": "Document provides no support for any of the specific details claimed in summary, vast fabrication of information",
+    "hallucination_identification": "Massive fabrication: all specific details about personnel, institution, methodology, and funding are invented additions",
+    "final_evaluation": "Summary completely fabricates detailed information with no basis in the original document"
+  },
+  "hallucination_list": ["Dr. Johnson's team at Stanford University", "randomized controlled trial with 1,000 participants", "over 2 years", "funded by NIH grant R01-123456"]
+}
+```
+
+=========================
+
+**After outputting the JSON, stop immediately. Do not add any explanation, reasoning, or repeat the JSON.**

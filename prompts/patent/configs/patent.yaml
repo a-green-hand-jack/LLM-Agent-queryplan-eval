@@ -1,0 +1,74 @@
+metadata:
+  name: patent
+  description: "专利风格的线性肽表示转换任务"
+  author: "Jieke Wu, SFB Lab, KAUST"
+  current_version: "v2"
+  tags: ["patent", "peptide", "sequence", "conversion"]
+  notes: |
+    该配置用于将人工合成肽的 JSON 对象转换为专利风格的线性肽表示。
+
+    输入：
+    - sequence: 由空格分隔的标准或非标准三字母残基
+    - features: 含若干修饰信息，其中 name_key 为 "MOD_RES" 的条目表示残基修饰
+
+    输出：
+    - 专利风格的线性肽表示字符串（用连字符连接的残基序列）
+
+    支持的版本：
+    - v1: 基础版本
+    - v2: 改进版本
+
+parameters:
+  sequence:
+    type: str
+    required: true
+    default: null
+    description: "由空格分隔的标准或非标准三字母残基序列"
+
+  features:
+    type: list
+    required: false
+    default: null
+    description: |
+      修饰信息列表，每个条目包含：
+      - name_key: 特征类型（"MOD_RES" 表示残基修饰）
+      - location: 位置信息
+      - other_information: 修饰残基名称
+
+  peptide_json:
+    type: dict
+    required: false
+    default: null
+    description: "完整的肽段 JSON 对象（包含 sequence 和 features 字段）"
+
+llm_config:
+  model: "gpt-4"
+  temperature: 0.3
+  max_tokens: 1000
+
+template_mapping:
+  v1:
+    system: "patent/v1.jinja2"
+    user: null
+    description: "基础版本的专利肽表示转换规则"
+
+  v2:
+    system: "patent/v2.jinja2"
+    user: null
+    description: "改进版本的专利肽表示转换规则"
+
+output_format:
+  type: "string"
+  description: "专利风格的线性肽表示，残基按顺序用连字符 - 连接"
+  example: "Ala-Ser-(D-Lys)-Pen-(N-Me-Arg)-Gly"
+
+conversion_rules:
+  - "残基位置从 1 开始编号"
+  - "标准 L-氨基酸直接输出三字母代码，不加括号"
+  - "修饰残基根据类型按特定规则输出"
+  - "Pen 直接输出，不加括号"
+  - "N-Me-X 等修饰用括号包围"
+  - "D- 开头的残基用括号包围"
+  - "其他非常规残基用括号包围"
+  - "所有残基用连字符连接"
+  - "仅输出一行结果，不加额外说明"

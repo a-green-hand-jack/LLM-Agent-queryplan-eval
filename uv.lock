@@ -1842,6 +1842,29 @@ wheels = [
 ]
 
 [[package]]
+name = "prompt-manager"
+version = "1.0.0"
+source = { editable = "../../prompt_manager" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "jinja2", specifier = ">=3.1.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "propcache"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2299,6 +2322,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "outlines", extra = ["openai"] },
     { name = "pandas" },
+    { name = "prompt-manager" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "tqdm" },
@@ -2341,6 +2365,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "outlines", extras = ["openai"], specifier = ">=1.0.7" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "prompt-manager", editable = "../../prompt_manager" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
