@@ -50,11 +50,15 @@ env/
 # IDE/编辑器配置
 .idea/
 .vscode/
-.vscode/
 *.swp
 *.swo
 *~
 .DS_Store
+
+# AI 协作工具配置（仅在 main 分支忽略）
+.cursor/
+.claude/
+docs/ai/
 
 # 环境变量文件
 .env
