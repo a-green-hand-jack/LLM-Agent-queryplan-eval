@@ -3,5 +3,6 @@
 from .base_llm import BaseLLM
 from .base_task import BaseTask
 from .prompt_manager import PromptManager, PatentPromptManager
+from .llm_factory import create_llm
 
-__all__ = ["BaseLLM", "BaseTask", "PromptManager", "PatentPromptManager"]
+__all__ = ["BaseLLM", "BaseTask", "PromptManager", "PatentPromptManager", "create_llm"]

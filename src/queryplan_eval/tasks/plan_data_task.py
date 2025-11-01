@@ -43,7 +43,8 @@ class PlanDataTask(BaseTask):
         mode: str = "single",
         enable_cot: bool = True,
         sample_n: Optional[int] = None,
-        **kwargs
+        llm = None,
+        output_dir: str = "outputs/plan_data",
     ):
         """初始化计划数据任务
         
@@ -51,7 +52,8 @@ class PlanDataTask(BaseTask):
             mode: 模式 ('single', 'multi', 'single_think', 'multi_think')
             enable_cot: 是否在提示词中启用 CoT 提示
             sample_n: 采样数量
-            **kwargs: 传递给 BaseTask 的参数
+            llm: LLM 实例
+            output_dir: 输出目录
         """
         if mode not in ("single", "multi", "single_think", "multi_think"):
             raise ValueError(f"mode 必须是 single/multi/single_think/multi_think 之一，得到: {mode}")
@@ -59,7 +61,16 @@ class PlanDataTask(BaseTask):
         self.mode = mode
         self.enable_cot = enable_cot
         self.sample_n = sample_n
-        super().__init__(**kwargs)
+        
+        # PlanDataTask 不需要 data_path 和 prompt_manager 在初始化时提供
+        # 因为它在 build_chat 中动态创建 prompt_manager
+        # 数据集通过 load_dataset 方法单独加载
+        self.llm = llm
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.dataset = None  # 稍后通过 load_dataset 设置
+        
+        logger.info(f"PlanDataTask 初始化完成 (mode={mode}, enable_cot={enable_cot})")
     
     def load_dataset(self, path: str) -> Dataset:
         """加载计划数据集

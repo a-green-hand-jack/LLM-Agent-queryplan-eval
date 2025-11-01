@@ -27,7 +27,7 @@ source .venv/bin/activate
 DATA_FILE="data/plan_data.xlsx"
 SAMPLE_N=20
 DEVICE="cuda"
-MODEL_NAME="Qwen/Qwen2.5-14B-Instruct"
+MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 LLM_TYPE="local"
 BASE_OUTPUT_DIR="outputs/plan_data_test"
 
@@ -62,7 +62,9 @@ for MODE in "${MODES[@]}"; do
         --sample-n $SAMPLE_N \
         --use-cot \
         --output-dir "$OUTPUT_DIR" \
-        --llm-model "$MODEL_NAME"
+        --llm-model "$MODEL_NAME" \
+        --llm-type "$LLM_TYPE" \
+        --device "$DEVICE"
     
     if [ $? -ne 0 ]; then
         echo "❌ $MODE 模式评估失败"

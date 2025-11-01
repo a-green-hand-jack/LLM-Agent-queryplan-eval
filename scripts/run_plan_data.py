@@ -102,10 +102,26 @@ def main():
     )
     
     parser.add_argument(
+        "--llm-type",
+        type=str,
+        choices=["openai", "local"],
+        default=None,
+        help="LLM 类型：'openai' 使用 OpenAI API，'local' 使用本地模型（默认根据模型名称自动判断）"
+    )
+    
+    parser.add_argument(
         "--llm-api-key",
         type=str,
         default=None,
         help="LLM API 密钥（默认从环境变量读取）"
+    )
+    
+    parser.add_argument(
+        "--device",
+        type=str,
+        choices=["cuda", "cpu"],
+        default="cuda",
+        help="设备类型（仅在使用本地模型时使用，默认: cuda）"
     )
     
     args = parser.parse_args()
@@ -129,10 +145,12 @@ def main():
     
     try:
         # 初始化 LLM
-        logger.info(f"初始化 LLM (model={args.llm_model})")
+        logger.info(f"初始化 LLM (model={args.llm_model}, type={args.llm_type or 'auto'})")
         llm = create_llm(
             model=args.llm_model,
-            api_key=args.llm_api_key
+            api_key=args.llm_api_key,
+            llm_type=args.llm_type,
+            device=args.device
         )
         
         # 初始化任务
@@ -152,7 +170,7 @@ def main():
         
         # 运行评估
         logger.info(f"开始运行评估")
-        metrics = task.run_evaluation()
+        metrics = task.run_evaluation(temperature=0.7)
         
         # 输出结果摘要
         logger.info("=" * 60)
